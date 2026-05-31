@@ -1,0 +1,1667 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import Papa from 'papaparse';
+import api from '@/lib/axios';
+import { useShop } from '@/context/ShopContext';
+import { SquareTwoStack } from "@medusajs/icons"
+import { useConfirm } from '@/context/ConfirmContext';
+
+export default function OrdersPage() {
+  const { confirm, notify } = useConfirm();
+  const { selectedShopId } = useShop();
+  const [activeTab, setActiveTab] = useState<'list' | 'import'>('list');
+  const [imageError, setImageError] = useState<{ [key: string]: boolean }>({});
+  // ==========================================
+  // 1. STATE QUẢN LÝ
+  // ==========================================
+  const [dbOrders, setDbOrders] = useState<any[]>([]);
+  const [importOrders, setImportOrders] = useState<any[]>([]);
+  const [isLoadingList, setIsLoadingList] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isAddingToPay, setIsAddingToPay] = useState(false);
+  
+  const [message, setMessage] = useState('');
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
+  
+  // Bộ lọc
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Import tab pagination
+  const [importCurrentPage, setImportCurrentPage] = useState(1);
+  const IMPORT_PAGE_SIZE = 20;
+  //Export
+  const [isExporting, setIsExporting] = useState(false);
+  
+  // Modal State
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editSource, setEditSource] = useState<'db' | 'import'>('import');
+  const [editForm, setEditForm] = useState<any>(null);
+  const [isReadOnly, setIsReadOnly] = useState(false);
+  const [specialPrintsForm, setSpecialPrintsForm] = useState<{name: string, url: string}[]>([]);
+  const [mockupsForm, setMockupsForm] = useState<{name: string, url: string}[]>([]);
+  // State phục vụ popup Hỗ trợ / Khiếu nại
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [supportType, setSupportType] = useState<'resent' | 'refund'>('resent');
+  const [supportReason, setSupportReason] = useState('');
+  const [supportImage, setSupportImage] = useState('');
+  const [isSubmittingSupport, setIsSubmittingSupport] = useState(false);
+  // THÊM: State theo dõi trạng thái đồng bộ SKU
+  const [isSyncingSKU, setIsSyncingSKU] = useState<number | null>(null);
+
+  // ==========================================
+  // 2. LOGIC DỮ LIỆU & BỘ LỌC
+  // ==========================================
+  useEffect(() => {
+    setSelectedRows([]);
+  }, [activeTab]);
+
+  const handleBulkDeleteImport = async () => {
+    const isConfirmed = await confirm({
+      title: "Xóa danh sách Import",
+      message: `Bạn chắc chắn muốn xóa ${selectedRows.length} đơn hàng khỏi danh sách chờ tải lên?`,
+      confirmText: "Xóa danh sách",
+      isDanger: true
+    });
+    if(!isConfirmed) return;
+    const selectedIndices = new Set(selectedRows.map(Number));
+    const remaining = importOrders.filter((_, idx) => !selectedIndices.has(idx));
+    setImportOrders(remaining);
+    setSelectedRows([]);
+    // Adjust page after bulk delete
+    const newTotalPages = Math.max(1, Math.ceil(remaining.length / IMPORT_PAGE_SIZE));
+    setImportCurrentPage(prev => Math.min(prev, newTotalPages));
+  };
+
+  const handleConfirmSupport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supportReason) return alert("Vui lòng nhập lý do khiếu nại.");
+    
+    setIsSubmittingSupport(true);
+    try {
+      await api.post('/partner/orders/support', {
+        order_ids: selectedRows,
+        type: supportType,
+        reason: supportReason,
+        proof_image: supportImage || "https://placehold.co/150?text=No+Image"
+      });
+      
+      notify("Đã chuyển các đơn hàng chọn sang trạng thái Hỗ trợ xử lý.");
+      setIsSupportModalOpen(false);
+      setSupportReason('');
+      setSupportImage('');
+      setSelectedRows([]);
+      fetchOrdersFromDB();
+    } catch (error: any) {
+      alert(error.response?.data?.error || "Gặp sự cố khi gửi yêu cầu.");
+    } finally {
+      setIsSubmittingSupport(false);
+    }
+  };
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      notify(`Đã sao chép: ${text}`); 
+    } catch (err) {
+      console.error('Lỗi khi sao chép: ', err);
+    }
+  };
+
+  const handleBulkActionDB = async (action: 'cancel' | 'archive') => {
+    // THÊM KIỂM TRA CHẶN: Nếu có đơn đã vào chu trình sản xuất hoặc giao hàng
+    const invalidOrders = selectedRows.filter(id => {
+      const order = dbOrders.find(o => o.id === id);
+      return order && ['processing', 'in_transit', 'done', 'cancelled'].includes(order.status);
+    });
+
+    if (invalidOrders.length > 0) {
+      notify("Lỗi: Có đơn hàng đã được Admin duyệt (processing) hoặc đang giao. Không thể hủy để tránh sai lệch công nợ!");
+      return;
+    }
+
+    const isConfirmed = await confirm({
+      title: "Xác nhận hủy đơn hàng",
+      message: `Bạn có chắc muốn hủy ${selectedRows.length} đơn hàng đã chọn? Đơn bị hủy sẽ được giữ lại trong lịch sử để đối soát nhưng KHÔNG THỂ chỉnh sửa. Nếu muốn thay đổi, bạn phải lên đơn mới.`,
+      confirmText: "Đồng ý Hủy",
+      isDanger: true
+    });
+    
+    if(!isConfirmed) return;
+    try {
+      await api.post('/partner/orders/bulk', { ids: selectedRows, action });
+      notify(`Đã hủy thành công!`); 
+      setSelectedRows([]);
+      fetchOrdersFromDB();
+    } catch (error) {
+      notify(`Lỗi xử lý hàng loạt. Vui lòng thử lại.`);
+    }
+  };
+
+  const handlePayOrders = async () => {
+    if (selectedRows.length === 0) return;
+    const isConfirmed = await confirm({
+      title: "Thanh toán đơn hàng",
+      message: `Tiến hành thanh toán chi phí sản xuất cho ${selectedRows.length} đơn hàng đang chọn?`,
+      confirmText: "Thanh toán ngay",
+    });
+
+    if (!isConfirmed) return;
+    setIsAddingToPay(true);
+    try {
+      const res = await api.post('/partner/orders/pay', { order_ids: selectedRows });
+      notify(res.data?.message || "Đã xử lý thanh toán đơn hàng thành công!");
+      window.dispatchEvent(new Event('refresh_total_spend'));
+      setSelectedRows([]);
+      fetchOrdersFromDB();
+    } catch (error: any) {
+      alert(error.response?.data?.error || "Gặp sự cố trong quá trình xử lý thanh toán.");
+    } finally {
+      setIsAddingToPay(false);
+    }
+  };
+  const handlePayAllPendingOrders = async () => {
+    const isConfirmed = await confirm({
+      title: "Thanh toán toàn bộ đơn",
+      message: "Tiến hành thanh toán chi phí sản xuất cho TẤT CẢ đơn hàng đang chờ thanh toán của cửa hàng này?",
+      confirmText: "Thanh toán tất cả",
+    });
+
+    if (!isConfirmed) return;
+    setIsAddingToPay(true);
+    try {
+      // Dùng API export để lấy toàn bộ danh sách đơn pending (không bị giới hạn phân trang)
+      const res = await api.get('/partner/orders/export', { 
+        params: { shop_id: selectedShopId, status: 'pending' } 
+      });
+      const pendingOrders = res.data.orders || [];
+      
+      if (pendingOrders.length === 0) {
+        notify("Không có đơn hàng nào cần thanh toán.");
+        setIsAddingToPay(false);
+        return;
+      }
+
+      const orderIds = pendingOrders.map((o: any) => o.id);
+      const payRes = await api.post('/partner/orders/pay', { order_ids: orderIds });
+      
+      notify(payRes.data?.message || `Đã thanh toán thành công ${orderIds.length} đơn hàng!`);
+      window.dispatchEvent(new Event('refresh_total_spend'));
+      setSelectedRows([]);
+      fetchOrdersFromDB();
+    } catch (error: any) {
+      alert(error.response?.data?.error || "Gặp sự cố trong quá trình xử lý thanh toán.");
+    } finally {
+      setIsAddingToPay(false);
+    }
+  };
+
+  const convertGoogleDriveUrl = (url?: string): string => {
+    if (!url) return '';
+
+    // file/d/
+    const fileMatch = url.match(/\/file\/d\/([^\/]+)/);
+
+    if (fileMatch?.[1]) {
+      return `https://drive.google.com/thumbnail?id=${fileMatch[1]}&sz=w1000`;
+    }
+
+    // open?id=
+    const openMatch = url.match(/[?&]id=([^&]+)/);
+
+    if (openMatch?.[1]) {
+      return `https://drive.google.com/thumbnail?id=${openMatch[1]}&sz=w1000`;
+    }
+
+    return url;
+  };
+
+  const fetchOrdersFromDB = useCallback(async () => {
+    if (!selectedShopId) return;
+    setIsLoadingList(true);
+    try {
+      const params: any = { 
+        shop_id: selectedShopId, 
+        page: currentPage, 
+        startDate, 
+        endDate 
+      };
+      
+      if (statusFilter === 'reship') {
+        params.search = searchQuery ? `${searchQuery} RS-` : 'RS-';
+      } else {
+        if (searchQuery) params.search = searchQuery;
+        if (statusFilter !== 'all') params.status = statusFilter;
+      }
+
+      const response = await api.get('/partner/orders', { params });
+      setDbOrders(response.data.orders);
+      setTotalPages(response.data.totalPages);
+      setTotalCount(response.data.count);
+    } catch (error) {
+      console.error("Lỗi tải danh sách:", error);
+    } finally {
+      setIsLoadingList(false);
+    }
+  }, [selectedShopId, currentPage, searchQuery, startDate, endDate, statusFilter]);
+
+  useEffect(() => {
+    if (activeTab === 'list' && selectedShopId) fetchOrdersFromDB();
+  }, [fetchOrdersFromDB, activeTab, selectedShopId]);
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setStartDate('');
+    setEndDate('');
+    setCurrentPage(1);
+  };
+  
+  const handleExportCSV = async () => {
+    if (!selectedShopId) return;
+    setIsExporting(true);
+    try {
+      const params: any = { shop_id: selectedShopId };
+      
+      if (statusFilter === 'reship') {
+        params.search = searchQuery ? `${searchQuery} RS-` : 'RS-';
+      } else {
+        if (statusFilter !== 'all') params.status = statusFilter;
+        if (searchQuery) params.search = searchQuery;
+      }
+      
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+
+      const response = await api.get('/partner/orders/export', { params });
+      const ordersToExport = response.data.orders || [];
+
+      if (ordersToExport.length === 0) {
+        alert("Không tìm thấy đơn hàng nào trong khoảng bộ lọc này để xuất file!");
+        return;
+      }
+
+      const headers = [
+        "Order ID", "Date", "Name", "Address line 1", "Address line 2", 
+        "City", "Region", "Zip", "Country", 
+        "Type", "Color", "Size", "Quantity", "SKU",
+        "Print area front", "Print area back", "Mockup Front", "Extra Print Areas", "Tracking", "Status"
+      ];
+      
+      const csvRows: string[] = [];
+
+      ordersToExport.forEach((order: any) => {
+        const orderDate = order.order_date ? new Date(order.order_date).toLocaleDateString('en-US') : '';
+        
+        let addr: any = {};
+        if (typeof order.shipping_address === 'string') {
+           try { addr = JSON.parse(order.shipping_address); } catch(e){}
+        } else if (order.shipping_address) {
+           addr = order.shipping_address.raw || order.shipping_address;
+        }
+        
+        const addr1 = addr.line_1 || addr.address_1 || '';
+        const addr2 = addr.line_2 || addr.address_2 || '';
+        const city = addr.city || '';
+        const region = addr.region || addr.province || addr.state || '';
+        const zip = addr.zip || addr.postal_code || '';
+        const country = addr.country || addr.country_code || 'US';
+
+        const statusText = 
+          order.status === 'pending' ? 'Chờ thanh toán' :
+          order.status === 'complete' ? 'Đã thanh toán' :
+          order.status === 'processing' ? 'Đang sản xuất' :
+          order.status === 'in_transit' ? 'Đang giao' :
+          order.status === 'done' ? 'Hoàn thành' :
+          order.status === 'cancelled' ? 'Đã hủy' : order.status || '---';
+
+        let items: any[] = [];
+        try {
+          if (Array.isArray(order.items) && order.items.length > 0) {
+            items = order.items;
+          } else if (order.product_detail) {
+            const pd = typeof order.product_detail === 'string' ? JSON.parse(order.product_detail) : order.product_detail;
+            if (Array.isArray(pd)) items = pd;
+            else if (pd && Array.isArray(pd.items)) items = pd.items;
+            else items = [pd];
+          }
+        } catch (e) {}
+        if (items.length === 0) {
+          items = [{
+            type: order.product_type || "", color: "", size: "", quantity: 1, sku: "",
+            design_front: order.design_front_url || "", design_back: order.design_back_url || "", mockup: "", extra_print_areas: []
+          }];
+        }
+        items.forEach(item => {
+          // Bóc tách mảng extra_print_areas thành chuỗi string
+          const extraPrintStr = (item.extra_print_areas || [])
+            .filter((a: any) => a.name || a.url)
+            .map((a: any) => `${a.name}: ${a.url}`)
+            .join(" | ");
+
+          const row = [
+            `"${(order.external_order_id || '').replace(/"/g, '""')}"`,
+            `"${orderDate}"`,
+            `"${(order.customer_name || '').replace(/"/g, '""')}"`,
+            `"${addr1.replace(/"/g, '""')}"`,
+            `"${addr2.replace(/"/g, '""')}"`,
+            `"${city.replace(/"/g, '""')}"`,
+            `"${region.replace(/"/g, '""')}"`,
+            `="${zip}"`, 
+            `"${country.replace(/"/g, '""')}"`,
+            `"${(item.type || order.product_type || '').replace(/"/g, '""')}"`,
+            `"${(item.color || '').replace(/"/g, '""')}"`,
+            `"${(item.size || '').replace(/"/g, '""')}"`,
+            item.quantity || 1,
+            `"${(item.sku || '').replace(/"/g, '""')}"`,
+            `"${(item.design_front || '').replace(/"/g, '""')}"`,
+            `"${(item.design_back || '').replace(/"/g, '""')}"`,
+            `"${(item.mockup || '').replace(/"/g, '""')}"`,
+            `"${extraPrintStr.replace(/"/g, '""')}"`,
+            `"${(order.tracking_number || '').replace(/"/g, '""')}"`,
+            `"${statusText}"`
+          ];
+          csvRows.push(row.join(","));
+        });
+      });
+
+      const csvContent = "\uFEFF" + [headers.join(","), ...csvRows].join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `orders_export_${selectedShopId}_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Lỗi xuất CSV đơn hàng:", error);
+      alert("Hệ thống gặp sự cố trong quá trình kết xuất dữ liệu file CSV.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedShopId) return;
+    
+    setMessage('Đang xử lý và gộp các đơn hàng trùng ID...');
+    Papa.parse(file, {
+      header: true, skipEmptyLines: true,
+      complete: (results) => {
+        const ordersMap = new Map();
+
+        results.data.forEach((row: any) => {
+          const orderId = row['Order ID']?.toString() || '';
+          if (!orderId) return;
+
+          const keys = Object.keys(row);
+          const addr2Key = keys.find(k => k.toLowerCase().includes('line 2')) || 'Address line 2';
+          
+          const newItem = {
+            sku: row['SKU'] || row['Design SKU'] || '',
+            type: row['Type'] || '',
+            color: row['Color'] || '',
+            size: row['Size'] || '',
+            quantity: parseInt(row['Quantity']) || 1,
+            design_front: row['Print area front'] || '',
+            design_back: row['Print area back'] || '',
+            mockup: row['Mockup Front'] || '',
+            extra_print_areas: []
+          };
+
+          if (ordersMap.has(orderId)) {
+            const existingOrder = ordersMap.get(orderId);
+            existingOrder.items.push(newItem);
+          } else {
+            ordersMap.set(orderId, {
+              external_order_id: orderId,
+              tracking_number: row['Tracking']?.toString() || '',
+              order_date: new Date().toISOString(),
+              customer_name: row['Name'] || '',
+              customer_email: '', customer_phone: '',
+              shipping_address: {
+                line_1: row['Address line 1'] || '', line_2: row[addr2Key] || '',
+                city: row['City'] || '', region: row['Region'] || '', zip: row['Zip'] || '', country: 'US'
+              },
+              items: [newItem],
+              product_type: row['Type'] || '', 
+              order_price: 0, 
+              order_note: '', 
+              status: 'pending'
+            });
+          }
+        });
+
+        const finalOrders = Array.from(ordersMap.values()).map(order => ({
+          ...order,
+          product_type: order.items.length > 1 
+            ? `${order.items[0].type} (+${order.items.length - 1} món khác)` 
+            : order.items[0].type
+        }));
+
+        setImportOrders(finalOrders);
+        setImportCurrentPage(1);
+        setMessage(`Đã chuẩn bị ${finalOrders.length} đơn hàng (đã gộp các đơn trùng ID).`);
+      }
+    });
+    event.target.value = '';
+  };
+
+  // ==========================================
+  // LOGIC ĐỒNG BỘ SKU 
+  // ==========================================
+  const handleSyncSKU = async (itemIndex: number, sku: string) => {
+    if (!sku.trim() || !selectedShopId) return;
+    setIsSyncingSKU(itemIndex);
+    
+    try {
+      const res = await api.get('/partner/designs', {
+        params: { shop_id: selectedShopId, search: sku.trim() }
+      });
+      
+      const designs = res.data.designs || [];
+      const exactMatch = designs.find((d: any) => d.sku.toLowerCase() === sku.trim().toLowerCase());
+
+      if (exactMatch) {
+        const newItems = [...editForm.items];
+        // Tự động kéo luôn các vùng in tùy chọn từ thư viện
+        const libraryExtraAreas = exactMatch.extra_print_areas || [];
+
+        newItems[itemIndex] = {
+          ...newItems[itemIndex],
+          design_front: exactMatch.design_front_url || newItems[itemIndex].design_front,
+          design_back: exactMatch.design_back_url || newItems[itemIndex].design_back,
+          mockup: exactMatch.mockup_url || newItems[itemIndex].mockup,
+          extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : newItems[itemIndex].extra_print_areas
+        };
+        setEditForm({ ...editForm, items: newItems });
+        notify(`🎉 Đã đồng bộ thiết kế thành công cho SKU: ${sku}`);
+      } else {
+        alert(`Không tìm thấy mã SKU "${sku}" trong thư viện thiết kế của bạn. Vui lòng kiểm tra lại!`);
+      }
+    } catch (error) {
+      alert('Xảy ra lỗi khi truy xuất thư viện thiết kế.');
+    } finally {
+      setIsSyncingSKU(null);
+    }
+  };
+
+  // ==========================================
+  // 3. HÀM HIỂN THỊ (RENDERER)
+  // ==========================================
+
+  const renderJsonObject = (data: any, type: 'address' | 'link' = 'address') => {
+    if (!data) return '---';
+    try {
+      let obj = typeof data === 'string' ? JSON.parse(data) : data;
+      if (typeof obj === 'string') return obj;
+
+      if (type === 'address') {
+        const targetObj = (obj.raw && typeof obj.raw === 'object') ? obj.raw : obj;
+        if (obj.raw && typeof obj.raw === 'string') return obj.raw;
+        const parts = [
+          targetObj.line_1, targetObj.line_2, targetObj.city, 
+          targetObj.region, targetObj.zip, targetObj.country
+        ].filter(Boolean);
+
+        if (parts.length > 0) return parts.join(', ');
+        return JSON.stringify(targetObj);
+      }
+      return Object.entries(obj).map(([name, url]: any) => (
+        <a key={name} href={typeof url === 'string' ? url : '#'} target="_blank" rel="noreferrer" className="block text-blue-500 hover:underline text-[10px]">
+          🔗 {name}
+        </a>
+      ));
+
+    } catch {
+      return typeof data === 'string' ? data : JSON.stringify(data);
+    }
+  };
+
+  const openEditModal = (index: number, source: 'db' | 'import') => {
+    setEditingIndex(index);
+    setEditSource(source);
+    const order = source === 'import' ? importOrders[index] : dbOrders[index];
+    
+    const isLocked = source === 'db' && !['pending', 'complete'].includes(order.status);
+    setIsReadOnly(isLocked);
+
+    const parseField = (f: any) => {
+      try { return typeof f === 'string' ? JSON.parse(f) : (f || {}); } catch { return {}; }
+    };
+
+    let parsedAddress = parseField(order.shipping_address);
+    if (parsedAddress.raw && typeof parsedAddress.raw === 'object') {
+      parsedAddress = parsedAddress.raw;
+    } else if (typeof parsedAddress === 'string') {
+      parsedAddress = { line_1: parsedAddress };
+    }
+
+    const parseField2 = (f: any) => {
+      try { return typeof f === 'string' ? JSON.parse(f) : (f ?? null); } catch { return null; }
+    };
+    let parsedProductDetail = parseField2(order.product_detail);
+    
+    // Parse thêm field `sku` vào item
+    const normalizeItem = (item: any) => ({
+      sku: item.sku || '',
+      type: item.type || '',
+      color: item.color || '',
+      size: item.size || '',
+      quantity: item.quantity || 1,
+      design_front: item.design_front || '',
+      design_back: item.design_back || '',
+      mockup: item.mockup || '',
+      extra_print_areas: Array.isArray(item.extra_print_areas) ? item.extra_print_areas : [],
+    });
+
+    let itemsArray: any[] = [];
+
+    if (source === 'import') {
+      itemsArray = Array.isArray(order.items) ? order.items.map(normalizeItem) : [];
+    } else {
+      if (Array.isArray(order.items) && order.items.length > 0) {
+        itemsArray = order.items.map(normalizeItem);
+      } else if (Array.isArray(parsedProductDetail)) {
+        itemsArray = parsedProductDetail.map(normalizeItem);
+      } else if (parsedProductDetail && Array.isArray(parsedProductDetail.items)) {
+        itemsArray = parsedProductDetail.items.map(normalizeItem);
+      } else {
+        const pt = parsedProductDetail && typeof parsedProductDetail === 'object' ? parsedProductDetail : {};
+        itemsArray = [{
+          sku: pt.sku || order.sku || '',
+          type: pt.type || order.product_type || '',
+          color: pt.color || '',
+          size: pt.size || '',
+          quantity: pt.quantity || 1,
+          design_front: pt.design_front || order.design_front_url || '',
+          design_back: pt.design_back || order.design_back_url || '',
+          mockup: pt.mockup || '',
+          extra_print_areas: [],
+        }];
+      }
+    }
+
+    const safeOrder = {
+      ...order,
+      shipping_address: parsedAddress,
+      items: itemsArray,
+    };
+    
+    setEditForm(safeOrder);
+
+    const parseToList = (f: any) => {
+      try {
+        const obj = typeof f === 'string' ? JSON.parse(f) : f;
+        return obj ? Object.entries(obj).map(([n, u]) => ({ name: n, url: u as string })) : [];
+      } catch { return []; }
+    };
+    setSpecialPrintsForm(parseToList(order.special_print_areas));
+    setMockupsForm(parseToList(order.mockup_urls));
+  };
+
+  const handleSaveEdit = async () => {
+    if (editingIndex !== null && editSource === 'import') {
+      const updated = [...importOrders];
+      const spObj: any = {};
+      specialPrintsForm.forEach(i => { if (i.name.trim()) spObj[i.name.trim()] = i.url; });
+      const muObj: any = {};
+      mockupsForm.forEach(i => { if (i.name.trim()) muObj[i.name.trim()] = i.url; });
+
+      const items = editForm.items || [];
+      const newProductType = items.length > 1
+        ? `${items[0]?.type} (+${items.length - 1} món khác)`
+        : (items[0]?.type || '');
+
+      updated[editingIndex] = { 
+        ...editForm, 
+        product_type: newProductType,
+        special_print_areas: Object.keys(spObj).length > 0 ? spObj : null,
+        mockup_urls: Object.keys(muObj).length > 0 ? muObj : null 
+      };
+      setImportOrders(updated);
+      setEditingIndex(null); 
+    } else if (editingIndex !== null && editSource === 'db') {
+      try {
+        const spObj: any = {};
+        specialPrintsForm.forEach(i => { if (i.name.trim()) spObj[i.name.trim()] = i.url; });
+        const muObj: any = {};
+        mockupsForm.forEach(i => { if (i.name.trim()) muObj[i.name.trim()] = i.url; });
+
+        const items = editForm.items || [];
+        const newProductType = items.length > 1
+          ? `${items[0]?.type} (+${items.length - 1} món khác)`
+          : (items[0]?.type || '');
+
+        const payload = {
+          ...editForm,
+          product_type: newProductType,
+          special_print_areas: Object.keys(spObj).length > 0 ? spObj : null,
+          mockup_urls: Object.keys(muObj).length > 0 ? muObj : null 
+        };
+
+        await api.post('/partner/orders', { 
+          orders: [payload], 
+          target_shop_id: selectedShopId 
+        });
+        
+        notify("Lưu thay đổi thành công!");
+        fetchOrdersFromDB();
+        setEditingIndex(null);
+      } catch (err: any) {
+        alert(err.response?.data?.error || "Lỗi lưu dữ liệu.");
+      }
+    }
+  };
+
+  const handleSyncToBackend = async () => {
+    if (importOrders.length === 0 || !selectedShopId) return;
+    
+    setIsImporting(true);
+    setMessage('Đang khởi động quá trình đồng bộ...');
+    
+    let totalCreated = 0;
+    let totalSkipped = 0;
+    let allMessages: string[] = []; 
+    
+    try {
+      const BATCH_SIZE = 50; 
+      const totalOrders = importOrders.length;
+
+      const ordersReadyForBackend = importOrders.map(order => ({
+        ...order,
+        product_detail: order.items ? JSON.stringify(order.items) : order.product_detail,
+        items: undefined 
+      }));
+
+      for (let i = 0; i < totalOrders; i += BATCH_SIZE) {
+        const batch = ordersReadyForBackend.slice(i, i + BATCH_SIZE); 
+        
+        setMessage(`Đang đồng bộ: ${i + 1} đến ${Math.min(i + BATCH_SIZE, totalOrders)} / Tổng ${totalOrders} đơn...`);
+        
+        const response = await api.post('/partner/orders', { 
+          orders: batch, 
+          target_shop_id: selectedShopId 
+        });
+
+        const resData = response.data;
+        totalCreated += resData.count || 0;
+        
+        const skippedCount = resData.skipped !== undefined ? resData.skipped : 
+                            (resData.message?.includes('Bỏ qua:') ? parseInt(resData.message.split('Bỏ qua:')[1]) : 0);
+        
+        totalSkipped += skippedCount;
+
+        if (resData.message && resData.message.includes('⚠️')) {
+            const warningText = resData.message.substring(resData.message.indexOf('⚠️'));
+            allMessages.push(warningText);
+        }
+      }
+
+      if (totalSkipped > 0) {
+        setMessage(`Đã lưu thành công ${totalCreated} đơn mới.\nBỏ qua ${totalSkipped} đơn do mã ID đã tồn tại trên hệ thống!\n\n${allMessages.join('\n')}`);
+      } else {
+        setMessage(`Đã đồng bộ thành công toàn bộ ${totalCreated} đơn hàng mới!`);
+      }
+      setTimeout(() => { 
+        setImportOrders([]); 
+        setActiveTab('list'); 
+      }, totalSkipped > 0 ? 6000 : 2000);
+
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || "Lỗi đồng bộ không xác định!";
+      console.error("Lỗi đồng bộ:", error);
+      setMessage(errorMessage); 
+      
+    } finally { 
+      setIsImporting(false); 
+    }
+  };
+
+  const renderProductColumn = (order: any) => {
+    const itemsArray = order.items || [];
+    if (itemsArray.length > 0) {
+      return (
+        <div className="flex flex-col gap-1.5 py-1">
+          {itemsArray.map((item: any, idx: number) => (
+            <div key={idx} className="text-[10px] bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200 flex items-center gap-2 w-max shadow-sm">
+              <span className="font-extrabold text-[#C29017] bg-[#C29017]/10 px-1.5 py-0.5 rounded">{item.quantity || 1}x</span>
+              <span className="font-bold text-gray-800">{item.type}</span>
+              <span className="text-gray-500 font-medium border-l pl-2 ml-1">({item.color || 'N/A'} - {item.size || 'N/A'})</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return <span className="text-sm text-gray-500 font-medium">{order.product_type || '---'}</span>;
+  };
+
+  
+  // ==========================================
+  // 4. GIAO DIỆN BẢNG DÙNG CHUNG
+  // ==========================================
+
+  const OrderTable = ({ data, isImport = false, pageOffset = 0 }: { data: any[], isImport?: boolean, pageOffset?: number }) => {
+    
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.checked) {
+        setSelectedRows(data.map((order, idx) => isImport ? (pageOffset + idx).toString() : order.id));
+      } else {
+        setSelectedRows([]);
+      }
+    };
+
+    const handleSelectRow = (checked: boolean, rowId: string) => {
+      if (checked) setSelectedRows(prev => [...prev, rowId]);
+      else setSelectedRows(prev => prev.filter(id => id !== rowId));
+    };
+
+    const allPageRowIds = data.map((order, idx) => isImport ? (pageOffset + idx).toString() : order.id);
+    const allPageSelected = data.length > 0 && allPageRowIds.every(id => selectedRows.includes(id));
+
+    return (
+      <div className="overflow-x-auto rounded-xl">
+        <table className="w-full text-left border-collapse whitespace-nowrap min-w-max">
+          <thead>
+            <tr className="bg-gray-100 text-gray-600 text-[11px] uppercase tracking-widest border-b border-gray-200">
+              <th className="p-4 font-bold sticky left-0 top-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.08)]">
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="checkbox" 
+                    onChange={handleSelectAll} 
+                    checked={allPageSelected}
+                    className="w-4 h-4 cursor-pointer accent-[#C29017] rounded border-gray-300 transition"
+                  />
+                  <span>Thao tác</span>
+                </div>
+              </th>
+              <th className="p-4 font-bold">Mã Đơn</th>
+              <th className="p-4 font-bold">Ngày lên đơn</th>
+              <th className="p-4 font-bold">Trạng thái</th>
+              <th className="p-4 font-bold">Tracking</th>
+              <th className="p-4 font-bold">Khách Hàng</th>
+              <th className="p-4 font-bold">Liên hệ</th>
+              <th className="p-4 font-bold">Địa chỉ</th>
+              <th className="p-4 font-bold">Sản phẩm</th>
+              <th className="p-4 font-bold text-gray-900">Giá</th>
+            </tr>
+          </thead>
+          <tbody className="text-sm">
+            {data.map((order, idx) => {
+              const absoluteIdx = pageOffset + idx;
+              const rowId = isImport ? absoluteIdx.toString() : order.id;
+              const isChecked = selectedRows.includes(rowId);
+
+              let statusLabel = order.status || 'pending';
+              let badgeColor = 'bg-yellow-50 text-yellow-700 border-yellow-200';
+              if (order.status === 'complete') {
+                statusLabel = 'Đã thanh toán';
+                badgeColor = 'bg-blue-50 text-blue-700 border-blue-200';
+              } else if (order.status === 'processing') {
+                badgeColor = 'bg-purple-50 text-purple-700 border-purple-200';
+              } else if (order.status === 'in_transit') {
+                badgeColor = 'bg-orange-50 text-orange-700 border-orange-200';
+              } else if (order.status === 'done') {
+                badgeColor = 'bg-green-50 text-green-700 border-green-200';
+              } else if (order.status === 'cancelled') {
+                badgeColor = 'bg-red-50 text-red-700 border-red-200';
+              } else if (order.status === 'pending') {
+                statusLabel = 'Chờ thanh toán';
+              }
+
+              return (
+                <tr key={idx} className={`border-b border-gray-100 transition duration-200 group ${isChecked ? 'bg-[#C29017]/10' : 'hover:bg-gray-50 bg-white'}`}>
+                  
+                  <td className={`p-4 sticky left-0 z-10 border-r border-gray-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] transition-colors duration-200 ${isChecked ? 'bg-[#fdf9f1]' : 'bg-white group-hover:bg-gray-50'}`}>
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked}
+                        onChange={(e) => handleSelectRow(e.target.checked, rowId)}
+                        className="w-4 h-4 cursor-pointer accent-[#C29017] rounded transition"
+                      />
+                      
+                      {(isImport || ['pending', 'complete'].includes(order.status)) ? (
+                        <>
+                          <button onClick={() => openEditModal(isImport ? absoluteIdx : idx, isImport ? 'import' : 'db')} className="text-[#C29017] font-bold hover:underline hover:text-[#a87c14] transition">Sửa</button>
+                          {isImport && (
+                            <button onClick={() => { setImportOrders(prev => prev.filter((_, i) => i !== absoluteIdx)); }} className="text-red-500 font-bold hover:underline transition">Xóa</button>
+                          )}
+                        </>
+                      ) : (
+                        <button onClick={() => openEditModal(idx, 'db')} className="text-teal-600 font-bold hover:underline transition">Xem</button>
+                      )}
+                    </div>
+                  </td>
+                  
+                  <td className="p-4">
+                  <div className="flex items-center gap-1.5 group/orderid w-max">
+                    <span className="font-bold text-gray-900">{order.external_order_id}</span>
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        copyToClipboard(order.external_order_id); 
+                      }} 
+                      className="text-gray-400 opacity-0 group-hover/orderid:opacity-100 transition-opacity hover:text-[#C29017]" 
+                      title="Sao chép ID đơn hàng"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+                      </svg>
+                    </button>
+                  </div>
+                  {/* HIỂN THỊ BADGE RESHIP */}
+                  {(order.order_type === 'reshipment' || (order.external_order_id && order.external_order_id.startsWith('RS-'))) && (
+                    <div className="mt-1">
+                      <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-purple-200 shadow-sm">
+                        Đơn Reship
+                      </span>
+                    </div>
+                  )}
+                </td>
+                <td className="p-4 text-xs text-gray-600 font-medium">
+                  {order.order_date 
+                    ? new Date(order.order_date).toLocaleDateString('vi-VN', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric'
+                      }) 
+                    : '---'}
+                </td>
+                  <td className="p-4">
+                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border ${badgeColor}`}>
+                      {statusLabel}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {order.tracking_number ? (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 group/track">
+                          <span className="font-bold text-[#C29017]">
+                            {order.tracking_number}
+                          </span>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); copyToClipboard(order.tracking_number); }} 
+                            className="text-gray-400 opacity-0 group-hover/track:opacity-100 transition-opacity hover:text-[#C29017]" 
+                            title="Sao chép"
+                          >
+                            {/* ĐÃ CHÈN VÀ CHUẨN HÓA SVG TẠI ĐÂY */}
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+                            </svg>
+                          </button>
+                        </div>
+                        <span className="text-gray-400 font-medium">{order.shipping_carrier || 'USPS'}</span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 italic">Chưa có</span>
+                    )}
+                  </td>
+                  <td className="p-4 font-semibold text-gray-800">{order.customer_name}</td>
+                  <td className="p-4 text-xs text-gray-500 space-y-0.5">
+                    <div>{order.customer_email || '---'}</div>
+                    <div>{order.customer_phone || '---'}</div>
+                  </td>
+                  <td className="p-4 text-gray-500 text-xs truncate max-w-[200px]" title={renderJsonObject(order.shipping_address) as string}>
+                    {renderJsonObject(order.shipping_address)}
+                  </td>
+                  <td className="p-4">{renderProductColumn(order)}</td>
+                  <td className="p-4 font-bold text-gray-900">${order.order_price}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white p-1.5 rounded-xl shadow-sm border border-gray-100 flex gap-1 w-max">
+        <button 
+          onClick={() => setActiveTab('list')} 
+          className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold transition ${
+            activeTab === 'list' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'
+          }`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+          </svg>
+          Quản lý đơn
+        </button>
+        
+        <button 
+          onClick={() => setActiveTab('import')} 
+          className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold transition ${
+            activeTab === 'import' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'
+          }`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+          </svg>
+          Import CSV
+        </button>
+      </div>
+
+      {activeTab === 'list' ? (
+        <div className="space-y-4 animate-in fade-in duration-300">
+          
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {[
+              { value: 'all', label: 'Tất cả' },
+              { value: 'pending', label: 'Chờ thanh toán' },
+              { value: 'complete', label: 'Chờ duyệt' },
+              { value: 'processing', label: 'Đang sản xuất' },
+              { value: 'in_transit', label: 'Đang giao hàng' },
+              { value: 'done', label: 'Hoàn thành' },
+              { value: 'cancelled', label: 'Đã hủy' },
+              { value: 'support', label: 'Yêu cầu Hỗ trợ' },
+              { value: 'reship', label: 'Đơn Reship' }
+            ].map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => {
+                  setStatusFilter(tab.value);
+                  if (typeof setCurrentPage === 'function') setCurrentPage(1); 
+                }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 border ${
+                  statusFilter === tab.value
+                    ? 'bg-gray-900 text-white border-gray-900 shadow-md'
+                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100 hover:text-gray-900'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center">
+            <input 
+              type="text" 
+              placeholder="Tìm đơn..." 
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
+              className="flex-1 min-w-[200px] border p-2 rounded-lg outline-none focus:border-blue-500"
+            />
+            
+            <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border">
+              <span className="text-[10px] font-bold text-gray-400 ml-2 uppercase">Từ</span>
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={(e) => {setStartDate(e.target.value); setCurrentPage(1);}} 
+                className="bg-transparent text-sm p-1 outline-none text-gray-600"
+              />
+              <span className="text-gray-300">|</span>
+              <span className="text-[10px] font-bold text-gray-400 uppercase">Đến</span>
+              <input 
+                type="date" 
+                value={endDate} 
+                onChange={(e) => {setEndDate(e.target.value); setCurrentPage(1);}} 
+                className="bg-transparent text-sm p-1 outline-none text-gray-600"
+              />
+            </div>
+
+            {(searchQuery || startDate || endDate || statusFilter !== 'all') && (
+              <button 
+                onClick={() => {
+                  handleResetFilters();
+                  setStatusFilter('all'); 
+                }} 
+                className="px-4 py-2 bg-red-50 text-red-500 hover:bg-red-100 font-bold rounded-lg text-sm transition"
+              >
+                ✖ Xóa lọc
+              </button>
+            )}
+            {statusFilter === 'pending' && (
+              <button
+                onClick={handlePayAllPendingOrders}
+                disabled={isAddingToPay || dbOrders.length === 0}
+                className="px-4 py-2 bg-[#C29017] hover:bg-[#a67b13] disabled:bg-gray-300 text-white font-bold rounded-lg text-sm transition flex items-center gap-2 shadow-sm"
+              >
+                {isAddingToPay ? (
+                  <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+                Thanh toán tất cả
+              </button>
+            )}
+            <button
+              onClick={handleExportCSV}
+              disabled={isExporting}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-bold rounded-lg text-sm transition flex items-center gap-2 shadow-sm"
+            >
+              {isExporting ? (
+                <>
+                  <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
+                  Đang xuất...
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                  </svg>
+                  Xuất file CSV
+                </>
+              )}
+            </button>
+            <div className="ml-auto text-sm font-medium text-gray-500">
+              Tổng kết quả: <span className="text-gray-900 bg-gray-100 px-2 py-1 rounded font-bold">{totalCount}</span>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-4">
+            {dbOrders.length > 0 ? (
+              <OrderTable data={dbOrders} />
+            ) : (
+              <div className="p-12 text-center text-gray-500 font-medium">
+                Không tìm thấy đơn hàng nào phù hợp với bộ lọc hiện tại.
+              </div>
+            )}
+          </div>
+          {/* === THANH PHÂN TRANG === */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-4 mt-4 bg-white border border-gray-100 rounded-xl shadow-sm">
+              <div className="text-sm text-gray-500 font-medium">
+                Hiển thị <span className="font-bold text-gray-900">{dbOrders.length}</span> / <span className="font-bold text-gray-900">{totalCount}</span> đơn hàng
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 border rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  ← Trước
+                </button>
+                
+                <div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm font-bold text-gray-700">
+                  Trang {currentPage} / {totalPages}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 border rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  Sau →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+            <div className="flex gap-3">
+              <label className="bg-white border-2 border-dashed border-gray-300 px-4 py-2 rounded-lg text-sm font-bold cursor-pointer hover:border-blue-500 transition">Chọn file CSV<input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} /></label>
+              {importOrders.length > 0 && (
+                <button 
+                  onClick={handleSyncToBackend} 
+                  disabled={isImporting} 
+                  className="bg-[#C29017] text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-[#a67b13] hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isImporting ? 'Đang gửi...' : 'Đồng bộ lên Web'}
+                </button>
+              )}
+            </div>
+          </div>
+          {message && (
+            <div className={`p-4 rounded-xl text-sm border shadow-sm ${
+              message.includes('thất bại') || message.includes('Lỗi')
+                ? 'bg-red-50 text-red-800 border-red-200'
+                : message.includes('thành công')
+                ? 'bg-green-50 text-green-800 border-green-200'
+                : 'bg-blue-50 text-blue-800 border-blue-200'
+            }`}>
+              <div className="whitespace-pre-wrap leading-relaxed font-semibold">
+                {message}
+              </div>
+            </div>
+          )}
+          {(() => {
+            const importTotalPages = Math.ceil(importOrders.length / IMPORT_PAGE_SIZE);
+            const importPageData = importOrders.slice(
+              (importCurrentPage - 1) * IMPORT_PAGE_SIZE,
+              importCurrentPage * IMPORT_PAGE_SIZE
+            );
+            return (
+              <>
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <OrderTable data={importPageData} isImport={true} pageOffset={(importCurrentPage - 1) * IMPORT_PAGE_SIZE} />
+                </div>
+                {importTotalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-4 mt-4 bg-white border border-gray-100 rounded-xl shadow-sm">
+                    <div className="text-sm text-gray-500 font-medium">
+                      Hiển thị <span className="font-bold text-gray-900">{importPageData.length}</span> / <span className="font-bold text-gray-900">{importOrders.length}</span> đơn hàng
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setImportCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={importCurrentPage === 1}
+                        className="px-4 py-2 border rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      >
+                        ← Trước
+                      </button>
+                      <div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm font-bold text-gray-700">
+                        Trang {importCurrentPage} / {importTotalPages}
+                      </div>
+                      <button
+                        onClick={() => setImportCurrentPage(p => Math.min(importTotalPages, p + 1))}
+                        disabled={importCurrentPage === importTotalPages}
+                        className="px-4 py-2 border rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-50 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      >
+                        Sau →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* MODAL CHI TIẾT/CHỈNH SỬA */}
+      {editingIndex !== null && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col scale-in">
+            <div className="p-6 border-b flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-gray-800 text-lg">{isReadOnly ? 'Chi tiết đơn hàng' : '🛠️ Chỉnh sửa đơn hàng'}</h3>
+              <button onClick={() => setEditingIndex(null)} className="text-3xl font-light hover:text-red-500">&times;</button>
+            </div>
+            
+            <div className="p-8 overflow-y-auto space-y-8">
+              
+              {editForm.status === 'complete' && (
+                <div className="p-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-xs font-bold leading-relaxed">
+                  ℹ️ Đơn hàng đã được thanh toán và gửi đến Admin xưởng. Bạn vẫn có thể thay đổi thiết kế hoặc thông tin giao hàng ở đây, nhưng để đảm bảo an toàn, vui lòng liên hệ thêm bộ phận hỗ trợ xưởng để cập nhật kịp thời!
+                </div>
+              )}
+              {['processing', 'in_transit', 'done', 'cancelled'].includes(editForm.status) && (
+                <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-bold">
+                  Đơn hàng đã vượt qua khâu xét duyệt / đã khóa. Tuyệt đối không thể can thiệp thay đổi thông tin hệ thống ở giai đoạn này.
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b pb-2">Thông tin khách hàng</h4>
+                  <div>
+                    <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Họ tên</label>
+                    <input disabled={isReadOnly} value={editForm.customer_name || ''} onChange={(e) => setEditForm({...editForm, customer_name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:border-blue-500 disabled:bg-gray-50"/>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Email</label>
+                      <input disabled={isReadOnly} value={editForm.customer_email || ''} onChange={(e) => setEditForm({...editForm, customer_email: e.target.value})} className="w-full border p-2.5 rounded-lg text-sm disabled:bg-gray-50"/>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">SĐT</label>
+                      <input disabled={isReadOnly} value={editForm.customer_phone || ''} onChange={(e) => setEditForm({...editForm, customer_phone: e.target.value})} className="w-full border p-2.5 rounded-lg text-sm disabled:bg-gray-50"/>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b pb-2">Địa chỉ giao hàng chi tiết</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input disabled={isReadOnly} placeholder="Line 1" value={editForm.shipping_address?.line_1 || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, line_1: e.target.value}})} className="border p-2.5 rounded-lg text-sm disabled:bg-gray-50 col-span-2"/>
+                    <input disabled={isReadOnly} placeholder="Line 2" value={editForm.shipping_address?.line_2 || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, line_2: e.target.value}})} className="border p-2.5 rounded-lg text-sm disabled:bg-gray-50 col-span-2"/>
+                    <input disabled={isReadOnly} placeholder="City" value={editForm.shipping_address?.city || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, city: e.target.value}})} className="border p-2.5 rounded-lg text-sm disabled:bg-gray-50"/>
+                    <input disabled={isReadOnly} placeholder="State/Region" value={editForm.shipping_address?.region || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, region: e.target.value}})} className="border p-2.5 rounded-lg text-sm disabled:bg-gray-50"/>
+                    <input disabled={isReadOnly} placeholder="Zip Code" value={editForm.shipping_address?.zip || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, zip: e.target.value}})} className="border p-2.5 rounded-lg text-sm disabled:bg-gray-50"/>
+                    <input disabled={isReadOnly} placeholder="Country" value={editForm.shipping_address?.country || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, country: e.target.value}})} className="border p-2.5 rounded-lg text-sm disabled:bg-gray-50"/>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center border-b pb-2">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                    Danh sách mặt hàng ({editForm.items?.length || 0})
+                  </h4>
+                  {!isReadOnly && (
+                    <button
+                      onClick={() => {
+                        const newItem = { sku: '', type: '', color: '', size: '', quantity: 1, design_front: '', design_back: '', mockup: '', extra_print_areas: [] };
+                        setEditForm({ ...editForm, items: [...(editForm.items || []), newItem] });
+                      }}
+                      className="text-[10px] bg-green-50 px-3 py-1 rounded-lg text-green-600 font-bold hover:bg-green-100 transition"
+                    >
+                      + Thêm sản phẩm
+                    </button>
+                  )}
+                </div>
+                
+                {(editForm.items || []).map((item: any, index: number) => (
+                  <div key={index} className="p-5 bg-white shadow-sm rounded-xl border border-gray-200 space-y-5">
+                    
+                    {/* HÀNG 1: Tiêu đề & Tính năng Nhập SKU */}
+                    <div className="flex justify-between items-end border-b border-gray-100 pb-3">
+                      <div className="flex-1 flex items-center gap-3">
+                        <span className="text-[10px] bg-gray-900 text-white px-2.5 py-1 rounded font-bold uppercase">Món #{index + 1}</span>
+                        <div className="flex items-center gap-2 max-w-sm w-full">
+                          <input 
+                            disabled={isReadOnly} 
+                            placeholder="Nhập mã SKU thiết kế..." 
+                            value={item.sku || ''} 
+                            onChange={(e) => {
+                              const newItems = [...editForm.items];
+                              newItems[index] = { ...newItems[index], sku: e.target.value };
+                              setEditForm({ ...editForm, items: newItems });
+                            }}
+                            className="w-full border p-1.5 px-3 rounded-lg text-xs bg-gray-50 outline-none focus:border-[#C29017] disabled:bg-gray-100 transition-colors"
+                          />
+                          {!isReadOnly && (
+                            <button 
+                              type="button"
+                              onClick={() => handleSyncSKU(index, item.sku)}
+                              disabled={isSyncingSKU === index || !item.sku}
+                              className="text-[10px] bg-[#C29017] text-white px-3 py-1.5 rounded-lg font-bold shadow-sm hover:bg-[#a67b13] transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0"
+                            >
+                              {isSyncingSKU === index ? <span className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span> : '⟳ Đồng bộ'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {!isReadOnly && (editForm.items || []).length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newItems = editForm.items.filter((_: any, i: number) => i !== index);
+                            setEditForm({ ...editForm, items: newItems });
+                          }}
+                          className="text-[10px] text-red-500 bg-red-50 px-2.5 py-1 rounded hover:bg-red-100 font-bold transition ml-4 shrink-0"
+                        >
+                          Xóa mặt hàng
+                        </button>
+                      )}
+                    </div>
+                    
+                    {/* HÀNG 2: Thuộc tính cơ bản */}
+                    <div className="grid grid-cols-4 gap-4">
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Loại sản phẩm</label>
+                        <input 
+                          disabled={isReadOnly} 
+                          value={item.type || ''} 
+                          onChange={(e) => {
+                            const newItems = [...editForm.items];
+                            newItems[index] = { ...newItems[index], type: e.target.value };
+                            setEditForm({ ...editForm, items: newItems });
+                          }}
+                          className="w-full border p-2 rounded-lg text-sm bg-gray-50 outline-none focus:border-blue-500 disabled:bg-gray-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Màu</label>
+                        <input 
+                          disabled={isReadOnly} 
+                          value={item.color || ''} 
+                          onChange={(e) => {
+                            const newItems = [...editForm.items];
+                            newItems[index] = { ...newItems[index], color: e.target.value };
+                            setEditForm({ ...editForm, items: newItems });
+                          }}
+                          className="w-full border p-2 rounded-lg text-sm bg-gray-50 outline-none focus:border-blue-500 disabled:bg-gray-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Size</label>
+                        <input 
+                          disabled={isReadOnly} 
+                          value={item.size || ''} 
+                          onChange={(e) => {
+                            const newItems = [...editForm.items];
+                            newItems[index] = { ...newItems[index], size: e.target.value };
+                            setEditForm({ ...editForm, items: newItems });
+                          }}
+                          className="w-full border p-2 rounded-lg text-sm bg-gray-50 outline-none focus:border-blue-500 disabled:bg-gray-100"
+                        />
+                      </div>
+                    </div>
+
+                    {/* HÀNG 3: Giao diện Box Hiển thị Hình ảnh Thiết kế (Visual Designs) */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                      
+                      {/* Box Design Front */}
+                      <div className="flex gap-3 bg-blue-50/30 p-2.5 rounded-xl border border-blue-100">
+                        <div className="relative group/img shrink-0">
+                          <div className="w-24 h-24 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-blue-400">
+                            {item.design_front ? (
+                              <img
+                                src={imageError[`front-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_front)}
+                                alt="Front"
+                                className="w-full h-full object-contain"
+                                onError={() => setImageError((prev) => ({ ...prev, [`front-${index}`]: true }))}
+                              />
+                            ) : (
+                              <span className="text-[10px] text-gray-400 font-medium text-center">No Img<br/>Front</span>
+                            )}
+                          </div>
+                          
+                          {/* Popup Ảnh to */}
+                          {item.design_front && !imageError[`front-${index}`] && (
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                              <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center">
+                                <img 
+                                  src={convertGoogleDriveUrl(item.design_front)} 
+                                  alt="Front Preview" 
+                                  className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg"
+                                />
+                              </div>
+                              <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 flex flex-col justify-center">
+                          <label className="text-[10px] text-blue-600 font-bold uppercase mb-1">Mặt Trước</label>
+                          <input disabled={isReadOnly} placeholder="Nhập URL..." value={item.design_front || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_front: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full border border-blue-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-blue-500 disabled:bg-gray-50"/>
+                        </div>
+                      </div>
+
+                      {/* Box Design Back */}
+                      <div className="flex gap-3 bg-purple-50/30 p-2.5 rounded-xl border border-purple-100">
+                        <div className="relative group/img shrink-0">
+                          <div className="w-24 h-24 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-purple-400">
+                            {item.design_back ? (
+                              <img
+                                src={imageError[`back-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_back)}
+                                alt="Back"
+                                className="w-full h-full object-contain"
+                                onError={() => setImageError((prev) => ({ ...prev, [`back-${index}`]: true }))}
+                              />
+                            ) : (
+                              <span className="text-[10px] text-gray-400 font-medium text-center">No Img<br/>Back</span>
+                            )}
+                          </div>
+
+                          {/* Popup Ảnh to */}
+                          {item.design_back && !imageError[`back-${index}`] && (
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                              <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center">
+                                <img 
+                                  src={convertGoogleDriveUrl(item.design_back)} 
+                                  alt="Back Preview" 
+                                  className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg"
+                                />
+                              </div>
+                              <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 flex flex-col justify-center">
+                          <label className="text-[10px] text-purple-600 font-bold uppercase mb-1">Mặt Sau</label>
+                          <input disabled={isReadOnly} placeholder="Nhập URL..." value={item.design_back || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_back: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full border border-purple-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-purple-500 disabled:bg-gray-50"/>
+                        </div>
+                      </div>
+
+                      {/* Box Mockup */}
+                      <div className="flex gap-3 bg-teal-50/30 p-2.5 rounded-xl border border-teal-100">
+                        <div className="relative group/img shrink-0">
+                          <div className="w-24 h-24 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-teal-400">
+                            {item.mockup ? (
+                              <img
+                                src={imageError[`mockup-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.mockup)}
+                                alt="Mockup"
+                                className="w-full h-full object-contain"
+                                onError={() => setImageError((prev) => ({ ...prev, [`mockup-${index}`]: true }))}
+                              />
+                            ) : (
+                              <span className="text-[10px] text-gray-400 font-medium text-center">No Img<br/>Mockup</span>
+                            )}
+                          </div>
+
+                          {/* Popup Ảnh to */}
+                          {item.mockup && !imageError[`mockup-${index}`] && (
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                              <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center">
+                                <img 
+                                  src={convertGoogleDriveUrl(item.mockup)} 
+                                  alt="Mockup Preview" 
+                                  className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg"
+                                />
+                              </div>
+                              <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 flex flex-col justify-center">
+                          <label className="text-[10px] text-teal-600 font-bold uppercase mb-1">Mockup SP</label>
+                          <input disabled={isReadOnly} placeholder="Nhập URL..." value={item.mockup || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], mockup: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full border border-teal-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-teal-500 disabled:bg-gray-50"/>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* HÀNG 4: CÁC VÙNG IN TÙY CHỌN (EXTRA PRINT AREAS) - NÂNG CẤP */}
+                    <div className="pt-4 mt-4 border-t border-gray-100">
+                      <div className="flex justify-between items-center mb-3">
+                        <label className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Các vùng in tùy chọn (Tay áo, Cổ áo, Nhãn...)</label>
+                        {!isReadOnly && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newItems = [...editForm.items];
+                              const currentAreas = Array.isArray(newItems[index].extra_print_areas) ? newItems[index].extra_print_areas : [];
+                              newItems[index] = { ...newItems[index], extra_print_areas: [...currentAreas, { name: '', url: '' }] };
+                              setEditForm({ ...editForm, items: newItems });
+                            }}
+                            className="text-[10px] bg-gray-100 px-3 py-1.5 rounded-lg text-gray-700 font-bold hover:bg-gray-200 transition"
+                          >
+                            + Thêm vùng in
+                          </button>
+                        )}
+                      </div>
+
+                      {Array.isArray(item.extra_print_areas) && item.extra_print_areas.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {item.extra_print_areas.map((area: any, aIdx: number) => (
+                            <div key={aIdx} className="flex gap-3 bg-gray-50/70 p-2.5 rounded-xl border border-gray-200 relative group/extra">
+                              
+                              <div className="relative group/img shrink-0">
+                                <div className="w-16 h-16 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-gray-400">
+                                  {area.url ? (
+                                    <img src={imageError[`extra-${index}-${aIdx}`] ? '/no-image.png' : convertGoogleDriveUrl(area.url)} className="w-full h-full object-contain" onError={() => setImageError(prev => ({...prev, [`extra-${index}-${aIdx}`]: true}))} />
+                                  ) : (
+                                    <span className="text-[8px] text-gray-400 font-medium text-center">No Img</span>
+                                  )}
+                                </div>
+                                {area.url && !imageError[`extra-${index}-${aIdx}`] && (
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                    <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center"><img src={convertGoogleDriveUrl(area.url)} className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg" /></div>
+                                    <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex-1 flex flex-col justify-center gap-1.5">
+                                <input disabled={isReadOnly} placeholder="Tên (VD: Left Sleeve)" value={area.name || ''} onChange={(e) => { const n = [...editForm.items]; n[index].extra_print_areas[aIdx].name = e.target.value; setEditForm({ ...editForm, items: n }); }} className="w-full border border-gray-200 p-1.5 rounded-md text-[11px] font-bold text-gray-800 bg-white outline-none focus:border-gray-500 disabled:bg-gray-50" />
+                                <input disabled={isReadOnly} placeholder="Link Design URL..." value={area.url || ''} onChange={(e) => { const n = [...editForm.items]; n[index].extra_print_areas[aIdx].url = e.target.value; setEditForm({ ...editForm, items: n }); }} className="w-full border border-gray-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-gray-500 disabled:bg-gray-50" />
+                              </div>
+
+                              {!isReadOnly && (
+                                <button type="button" onClick={() => { const n = [...editForm.items]; n[index].extra_print_areas = n[index].extra_print_areas.filter((_: any, i: number) => i !== aIdx); setEditForm({ ...editForm, items: n }); }} className="absolute -top-2 -right-2 bg-red-100 text-red-500 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold hover:bg-red-500 hover:text-white transition opacity-0 group-hover/extra:opacity-100 shadow-sm">✕</button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-2">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center border-b pb-2">
+                    <h4 className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">Mock-ups đơn hàng (Chung)</h4>
+                    {!isReadOnly && <button onClick={() => setMockupsForm([...mockupsForm, {name: '', url: ''}])} className="text-[10px] bg-teal-50 px-3 py-1 rounded-lg text-teal-600 font-bold hover:bg-teal-100">+ Thêm</button>}
+                  </div>
+                  {mockupsForm.map((m, i) => (
+                    <div key={i} className="flex gap-1 items-center">
+                      <input disabled={isReadOnly} placeholder="Tên" value={m.name || ''} onChange={(e) => { const n = [...mockupsForm]; n[i].name = e.target.value; setMockupsForm(n); }} className="w-1/3 border p-1.5 rounded text-xs disabled:bg-gray-50"/>
+                      <input disabled={isReadOnly} placeholder="Link URL" value={m.url || ''} onChange={(e) => { const n = [...mockupsForm]; n[i].url = e.target.value; setMockupsForm(n); }} className="flex-1 border p-1.5 rounded text-xs text-blue-500 disabled:bg-gray-50"/>
+                      {!isReadOnly && (
+                        <button onClick={() => setMockupsForm(mockupsForm.filter((_, mi) => mi !== i))} className="text-red-400 hover:text-red-600 text-xs font-bold px-1">✕</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Ghi chú</label>
+                <textarea disabled={isReadOnly} value={editForm.order_note || ''} onChange={(e) => setEditForm({...editForm, order_note: e.target.value})} className="w-full border p-2.5 rounded-lg mt-1 outline-none focus:border-blue-500 h-20 disabled:bg-gray-50"/>
+              </div>
+            </div>
+
+            <div className="p-6 bg-gray-50 border-t flex justify-end gap-3 sticky bottom-0">
+              <button onClick={() => setEditingIndex(null)} className="px-8 py-2.5 font-bold text-gray-400 hover:text-gray-600 transition">{isReadOnly ? 'Đóng' : 'Hủy'}</button>
+              {!isReadOnly && <button onClick={handleSaveEdit} className="bg-[#C29017] text-white px-12 py-2.5 rounded-xl font-bold shadow-lg hover:bg-[#a67b13] transition-all active:scale-95">Lưu thay đổi</button>}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* THANH CÔNG CỤ BULK ACTION NỔI Ở ĐÁY MÀN HÌNH */}
+      {selectedRows.length > 0 && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-4 rounded-2xl shadow-[0_10px_40px_-10px_rgba(194,144,23,0.3)] z-[60] flex items-center gap-6 border border-gray-700 transition-all duration-300">
+          <div className="flex items-center gap-2">
+            {/* Số đếm màu Gold */}
+            <span className="flex items-center justify-center bg-[#C29017] text-white w-6 h-6 rounded-full text-xs font-bold animate-pulse shadow-[0_0_10px_#C29017]">
+              {selectedRows.length}
+            </span>
+            <span className="font-semibold text-sm">đơn được chọn</span>
+          </div>
+          
+          <div className="w-px h-6 bg-gray-700"></div>
+          
+          <div className="flex gap-2">
+            {activeTab === 'import' ? (
+              <button onClick={handleBulkDeleteImport} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg text-xs font-bold transition shadow-lg">
+                Xóa khỏi danh sách
+              </button>
+            ) : (
+              <>
+                {selectedRows.some(id => {
+                  const order = dbOrders.find(o => o.id === id);
+                  return order && (!order.status || order.status === 'pending');
+                }) && (
+                  <button 
+                    onClick={handlePayOrders} 
+                    disabled={isAddingToPay} 
+                    className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg text-xs font-bold transition shadow-lg flex items-center gap-1.5"
+                  >
+                    {isAddingToPay ? (
+                      <span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span>
+                    ) : ''}
+                    Thanh toán
+                  </button>
+                )}
+                
+                {(() => {
+                  const hasUncancellable = selectedRows.some(id => {
+                    const order = dbOrders.find(o => o.id === id);
+                    return order && ['processing', 'in_transit', 'done', 'cancelled'].includes(order.status);
+                  });
+
+                  return (
+                    <button 
+                      onClick={() => handleBulkActionDB('cancel')} 
+                      disabled={hasUncancellable}
+                      title={hasUncancellable ? "Có đơn đã duyệt sản xuất, không thể hủy" : "Hủy đơn hàng"}
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition shadow-lg flex items-center gap-1.5 ${
+                        hasUncancellable 
+                          ? "bg-gray-400 text-gray-200 cursor-not-allowed shadow-none" 
+                          : "bg-red-500 hover:bg-red-600 text-white"
+                      }`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Hủy đơn hàng
+                    </button>
+                  );
+                })()}
+                <button 
+                  onClick={() => { setSupportType('resent'); setIsSupportModalOpen(true); }}
+                  className="bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-lg text-xs font-bold text-gray-900 transition flex items-center gap-1.5"
+                >
+                  🛠 Yêu cầu Hỗ trợ
+                </button>
+              </>
+            )}
+            <button onClick={() => setSelectedRows([])} className="bg-transparent hover:bg-gray-800 text-gray-300 px-3 py-2 rounded-lg text-xs font-bold transition">
+              ✖ Đóng
+            </button>
+          </div>
+        </div>
+      )}
+      {/* POPUP NHẬP LÝ DO & ẢNH MINH CHỨNG BIẾN ĐỘNG HỖ TRỢ */}
+      {isSupportModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <form onSubmit={handleConfirmSupport} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-extrabold text-base text-gray-900">Tạo yêu cầu Hỗ trợ / Khiếu nại</h3>
+              <p className="text-xs text-gray-500 mt-1">Áp dụng cho hành động hàng loạt trên {selectedRows.length} đơn hàng.</p>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Hình thức yêu cầu</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setSupportType('resent')} className={`p-2.5 rounded-xl border font-bold text-xs text-center transition ${supportType === 'resent' ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white text-gray-600'}`}>Hỗ trợ đi lại (Reship)</button>
+                  <button type="button" onClick={() => setSupportType('refund')} className={`p-2.5 rounded-xl border font-bold text-xs text-center transition ${supportType === 'refund' ? 'bg-red-50 border-red-400 text-red-700' : 'bg-white text-gray-600'}`}>Yêu cầu Hoàn tiền</button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Lý do chi tiết *</label>
+                <textarea 
+                  required
+                  rows={3}
+                  value={supportReason}
+                  onChange={(e) => setSupportReason(e.target.value)}
+                  placeholder="Ví dụ: Hàng lỗi rách áo, ship sai size, khách không nhận do giao muộn..."
+                  className="w-full border border-gray-300 p-2.5 rounded-xl text-xs outline-none focus:border-gray-900 text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Đường dẫn ảnh minh chứng (URL)</label>
+                <input 
+                  type="text"
+                  value={supportImage}
+                  onChange={(e) => setSupportImage(e.target.value)}
+                  placeholder="Dán link ảnh chụp lỗi sản phẩm tại đây..."
+                  className="w-full border border-gray-300 p-2.5 rounded-xl text-xs outline-none focus:border-gray-900 text-gray-800"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t flex justify-end gap-2">
+              <button type="button" onClick={() => setIsSupportModalOpen(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-lg">Đóng</button>
+              <button type="submit" disabled={isSubmittingSupport} className="px-5 py-2 text-xs font-bold bg-gray-900 text-white rounded-lg hover:bg-gray-800">
+                {isSubmittingSupport ? "Đang xử lý..." : "Gửi yêu cầu"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}

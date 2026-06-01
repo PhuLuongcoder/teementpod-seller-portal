@@ -386,13 +386,13 @@ export default function OrdersPage() {
     }
   };
 
-  const sanitizeText = (text) => {
+  const sanitizeText = (text: string | number | null | undefined) => {
   if (!text) return '';
   return text
     .toString()
-    .replace(/[\u200B-\u200D\uFEFF]/g, '') 
-    .replace(/\s+/g, ' ')                
-    .trim();                          
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 };
 
 const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {

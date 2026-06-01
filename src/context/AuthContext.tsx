@@ -69,27 +69,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('seller_token', token);
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser(userData);
-    router.push('/dashboard');
+    
+    // THAY ĐỔI TẠI ĐÂY: Dùng window.location.href để ép tải lại toàn bộ app mới
+    window.location.href = '/dashboard'; 
   };
 
   const logout = () => {
-    // 1. Xóa Token đăng nhập
     localStorage.removeItem('seller_token');
+    localStorage.removeItem('selectedShopId'); 
+    localStorage.removeItem('selected_shop_id'); 
+    localStorage.removeItem('seller_info'); 
     
-    // 2. DỌN DẸP SẠCH TÀN DƯ CỦA SELLER CŨ
-    localStorage.removeItem('selectedShopId'); // Tên key thường dùng trong ShopContext
-    localStorage.removeItem('selected_shop_id'); // Dự phòng nếu bạn dùng tên key này
-    localStorage.removeItem('seller_info'); // Xóa thông tin cá nhân (nếu có lưu)
-    
-    // Lưu ý: Nếu trang seller-portal của bạn chạy độc lập trên 1 tên miền phụ (ví dụ: seller.domain.com), 
-    // cách an toàn và triệt để nhất là dùng lệnh: localStorage.clear(); để xóa sạch 100%.
-    
-    // 3. Gỡ header API và Reset state
     delete api.defaults.headers.common['Authorization'];
     setUser(null);
     
-    // 4. Chuyển hướng
-    router.push('/'); // Đăng xuất trả thẳng về trang chủ gốc mới
+    // THAY ĐỔI TẠI ĐÂY: Quét sạch RAM bằng cách ép tải lại trang chủ
+    window.location.href = '/'; 
   };
 
   return (

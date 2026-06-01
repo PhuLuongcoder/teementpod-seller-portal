@@ -386,32 +386,43 @@ export default function OrdersPage() {
     }
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const sanitizeText = (text) => {
+  if (!text) return '';
+  return text
+    .toString()
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') 
+    .replace(/\s+/g, ' ')                
+    .trim();                          
+};
+
+const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !selectedShopId) return;
     
     setMessage('Đang xử lý và gộp các đơn hàng trùng ID...');
     Papa.parse(file, {
-      header: true, skipEmptyLines: true,
+      header: true, 
+      skipEmptyLines: true,
       complete: (results) => {
         const ordersMap = new Map();
 
         results.data.forEach((row: any) => {
-          const orderId = row['Order ID']?.toString() || '';
+          const orderId = sanitizeText(row['Order ID']);
           if (!orderId) return;
 
           const keys = Object.keys(row);
           const addr2Key = keys.find(k => k.toLowerCase().includes('line 2')) || 'Address line 2';
           
+          // Áp dụng hàm sanitizeText cho các trường quan trọng cần đem đi so sánh
           const newItem = {
-            sku: row['SKU'] || row['Design SKU'] || '',
-            type: row['Type'] || '',
-            color: row['Color'] || '',
-            size: row['Size'] || '',
+            sku: sanitizeText(row['SKU'] || row['Design SKU']),
+            type: sanitizeText(row['Type']),
+            color: sanitizeText(row['Color']),
+            size: sanitizeText(row['Size']),
             quantity: parseInt(row['Quantity']) || 1,
-            design_front: row['Print area front'] || '',
-            design_back: row['Print area back'] || '',
-            mockup: row['Mockup Front'] || '',
+            design_front: row['Print area front']?.trim() || '',
+            design_back: row['Print area back']?.trim() || '',
+            mockup: row['Mockup Front']?.trim() || '',
             extra_print_areas: []
           };
 
@@ -421,16 +432,20 @@ export default function OrdersPage() {
           } else {
             ordersMap.set(orderId, {
               external_order_id: orderId,
-              tracking_number: row['Tracking']?.toString() || '',
+              tracking_number: sanitizeText(row['Tracking']),
               order_date: new Date().toISOString(),
-              customer_name: row['Name'] || '',
+              customer_name: sanitizeText(row['Name']),
               customer_email: '', customer_phone: '',
               shipping_address: {
-                line_1: row['Address line 1'] || '', line_2: row[addr2Key] || '',
-                city: row['City'] || '', region: row['Region'] || '', zip: row['Zip'] || '', country: 'US'
+                line_1: row['Address line 1']?.trim() || '', 
+                line_2: row[addr2Key]?.trim() || '',
+                city: row['City']?.trim() || '', 
+                region: row['Region']?.trim() || '', 
+                zip: row['Zip']?.trim() || '', 
+                country: 'US'
               },
               items: [newItem],
-              product_type: row['Type'] || '', 
+              product_type: sanitizeText(row['Type']), 
               order_price: 0, 
               order_note: '', 
               status: 'pending'
@@ -451,7 +466,7 @@ export default function OrdersPage() {
       }
     });
     event.target.value = '';
-  };
+};
 
   // ==========================================
   // LOGIC ĐỒNG BỘ SKU 

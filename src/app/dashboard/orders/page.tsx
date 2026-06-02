@@ -406,10 +406,13 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       complete: (results) => {
         const ordersMap = new Map();
         
-        // NHẬN DIỆN THÔNG MINH: Nếu file có cột 'Ship Name', đó chắc chắn là file xuất từ Etsy
-        const isEtsyFormat = results.data.length > 0 && results.data[0].hasOwnProperty('Ship Name');
+        // Cập nhật: Ép kiểu results.data về mảng các object (any[]) để vượt qua bài kiểm tra của TypeScript
+        const parsedData = results.data as any[];
 
-        results.data.forEach((row: any) => {
+        // NHẬN DIỆN THÔNG MINH: Nếu file có cột 'Ship Name', đó chắc chắn là file xuất từ Etsy
+        const isEtsyFormat = parsedData.length > 0 && parsedData[0].hasOwnProperty('Ship Name');
+
+        parsedData.forEach((row: any) => {
           const orderId = sanitizeText(row['Order ID']);
           if (!orderId) return; // Nếu dòng không có mã đơn thì bỏ qua
 

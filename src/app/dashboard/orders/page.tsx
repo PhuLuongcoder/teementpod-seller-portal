@@ -749,52 +749,55 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
   };
 
   const handleSaveEdit = async () => {
-    if (editingIndex !== null && editSource === 'import') {
+    if (editingIndex === null) return;
+
+    const spObj: any = {};
+    specialPrintsForm.forEach(i => { if (i.name.trim()) spObj[i.name.trim()] = i.url; });
+    const muObj: any = {};
+    mockupsForm.forEach(i => { if (i.name.trim()) muObj[i.name.trim()] = i.url; });
+
+    const items = editForm.items || [];
+    const newProductType = items.length > 1
+      ? `${items[0]?.type} (+${items.length - 1} món khác)`
+      : (items[0]?.type || '');
+
+    // 3. TÍNH TOÁN LẠI GIÁ TIỀN (Hiển thị đúng ngay sau khi Seller bấm Cập nhật)
+    let tempOrderPrice = 0;
+    items.forEach((it: any) => {
+      const blank = podBlanks.find(b => b.name === it.type);
+      if (blank && blank.display_price) {
+        // Tạm tính = Giá base của phôi * Số lượng
+        tempOrderPrice += blank.display_price * (it.quantity || 1);
+      }
+    });
+
+    const updatedOrderData = { 
+      ...editForm, 
+      product_type: newProductType,
+      order_price: tempOrderPrice > 0 ? tempOrderPrice : editForm.order_price,
+      special_print_areas: Object.keys(spObj).length > 0 ? spObj : null,
+      mockup_urls: Object.keys(muObj).length > 0 ? muObj : null 
+    };
+
+    if (editSource === 'import') {
       const updated = [...importOrders];
-      const spObj: any = {};
-      specialPrintsForm.forEach(i => { if (i.name.trim()) spObj[i.name.trim()] = i.url; });
-      const muObj: any = {};
-      mockupsForm.forEach(i => { if (i.name.trim()) muObj[i.name.trim()] = i.url; });
-
-      const items = editForm.items || [];
-      const newProductType = items.length > 1
-        ? `${items[0]?.type} (+${items.length - 1} món khác)`
-        : (items[0]?.type || '');
-
-      updated[editingIndex] = { 
-        ...editForm, 
-        product_type: newProductType,
-        special_print_areas: Object.keys(spObj).length > 0 ? spObj : null,
-        mockup_urls: Object.keys(muObj).length > 0 ? muObj : null 
-      };
+      updated[editingIndex] = updatedOrderData;
       setImportOrders(updated);
       setEditingIndex(null); 
-    } else if (editingIndex !== null && editSource === 'db') {
+    } else if (editSource === 'db') {
       try {
-        const spObj: any = {};
-        specialPrintsForm.forEach(i => { if (i.name.trim()) spObj[i.name.trim()] = i.url; });
-        const muObj: any = {};
-        mockupsForm.forEach(i => { if (i.name.trim()) muObj[i.name.trim()] = i.url; });
-
-        const items = editForm.items || [];
-        const newProductType = items.length > 1
-          ? `${items[0]?.type} (+${items.length - 1} món khác)`
-          : (items[0]?.type || '');
-
-        const payload = {
-          ...editForm,
-          product_type: newProductType,
-          special_print_areas: Object.keys(spObj).length > 0 ? spObj : null,
-          mockup_urls: Object.keys(muObj).length > 0 ? muObj : null 
-        };
+        // Cập nhật giao diện ngay lập tức (Optimistic UI) để Seller thấy giá mới
+        const newDbOrders = [...dbOrders];
+        newDbOrders[editingIndex] = updatedOrderData;
+        setDbOrders(newDbOrders);
 
         await api.post('/partner/orders', { 
-          orders: [payload], 
+          orders: [updatedOrderData], 
           target_shop_id: selectedShopId 
         });
         
         notify("Lưu thay đổi thành công!");
-        fetchOrdersFromDB();
+        fetchOrdersFromDB(); // Gọi ngầm API để backend kéo lại giá chính xác (gồm cả ship/markup)
         setEditingIndex(null);
       } catch (err: any) {
         alert(err.response?.data?.error || "Lỗi lưu dữ liệu.");
@@ -1724,7 +1727,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                     </div>
                   );
                 })}
-
+              </div>
               <div className="pt-2">
                 <div className="space-y-4">
                   <div className="flex justify-between items-center border-b pb-2">

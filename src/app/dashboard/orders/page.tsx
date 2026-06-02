@@ -436,7 +436,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             
             rawQuantity = parseInt(row['Quantity']) || 1;
             rawSku = row['SKU'] || '';
-            tracking = row['Transaction ID'] || ''; // Etsy không có tracking sẵn, mượn Transaction ID
+            tracking = row['Tracking']?.trim() || '';
 
             // Tách Size và Color từ cột Variations ("SIZE:Blouse-L,Color:Yellow")
             const variations = row['Variations'] || '';

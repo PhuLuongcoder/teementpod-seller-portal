@@ -399,56 +399,129 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !selectedShopId) return;
     
-    setMessage('Đang xử lý và gộp các đơn hàng trùng ID...');
+    setMessage('Đang phân tích định dạng và gộp các đơn hàng...');
     Papa.parse(file, {
       header: true, 
       skipEmptyLines: true,
       complete: (results) => {
         const ordersMap = new Map();
+        
+        // NHẬN DIỆN THÔNG MINH: Nếu file có cột 'Ship Name', đó chắc chắn là file xuất từ Etsy
+        const isEtsyFormat = results.data.length > 0 && results.data[0].hasOwnProperty('Ship Name');
 
         results.data.forEach((row: any) => {
           const orderId = sanitizeText(row['Order ID']);
-          if (!orderId) return;
+          if (!orderId) return; // Nếu dòng không có mã đơn thì bỏ qua
 
-          const keys = Object.keys(row);
-          const addr2Key = keys.find(k => k.toLowerCase().includes('line 2')) || 'Address line 2';
+          // Các biến tạm để chứa dữ liệu chung sau khi phân loại
+          let rawType = '', rawColor = '', rawSize = '', rawQuantity = 1, rawSku = '';
+          let name = '', line1 = '', line2 = '', city = '', region = '', zip = '', country = 'US';
+          let designFront = '', designBack = '', mockup = '';
+          let tracking = '';
+
+          if (isEtsyFormat) {
+            // ==========================================
+            // 1. MAPPING CHO FILE ETSY
+            // ==========================================
+            name = row['Ship Name']?.trim() || '';
+            line1 = row['Ship Address1']?.trim() || '';
+            line2 = row['Ship Address2']?.trim() || '';
+            city = row['Ship City']?.trim() || '';
+            region = row['Ship State']?.trim() || '';
+            zip = row['Ship Zipcode']?.trim() || '';
+            country = row['Ship Country']?.trim() || 'US';
+            
+            rawQuantity = parseInt(row['Quantity']) || 1;
+            rawSku = row['SKU'] || '';
+            tracking = row['Transaction ID'] || ''; // Etsy không có tracking sẵn, mượn Transaction ID
+
+            // Tách Size và Color từ cột Variations ("SIZE:Blouse-L,Color:Yellow")
+            const variations = row['Variations'] || '';
+            // Regex bắt chữ SIZE: hoặc Size:
+            const sizeMatch = variations.match(/SIZE:\s*([^,]+)/i) || variations.match(/Size:\s*([^,]+)/i);
+            // Regex bắt chữ Color:
+            const colorMatch = variations.match(/Color:\s*([^,]+)/i);
+            
+            rawSize = sizeMatch ? sizeMatch[1].trim() : '';
+            rawColor = colorMatch ? colorMatch[1].trim() : '';
+            
+            // Etsy không có trường Type riêng lẻ, cắt tạm đoạn đầu của Item Name để làm Type
+            rawType = row['Item Name'] ? row['Item Name'].split(',')[0].trim() : '';
+            
+            // Design Links để trống hoàn toàn để seller tự bổ sung tay sau trên UI
+            designFront = '';
+            designBack = '';
+            mockup = '';
+            
+          } else {
+            // ==========================================
+            // 2. MAPPING CHO FILE TRUYỀN THỐNG (Team Mr.Khoa)
+            // ==========================================
+            const keys = Object.keys(row);
+            // Tìm cột Address line 2 vì CSV hay bị lỗi thụt dòng chữ 'line 2'
+            const addr2Key = keys.find(k => k.toLowerCase().includes('line 2')) || 'Address line 2';
+            
+            name = row['Name']?.trim() || '';
+            line1 = row['Address line 1']?.trim() || '';
+            line2 = row[addr2Key]?.trim() || '';
+            city = row['City']?.trim() || '';
+            region = row['Region']?.trim() || '';
+            zip = row['Zip']?.trim() || '';
+            country = row['Country']?.trim() || 'US'; // Mặc định US vì file Khoa không có cột Country
+            
+            rawType = row['Type'] || '';
+            rawColor = row['Color'] || '';
+            rawSize = row['Size'] || '';
+            rawQuantity = parseInt(row['Quantity']) || 1;
+            rawSku = row['SKU'] || row['Design SKU'] || '';
+            tracking = row['Tracking'] || '';
+            
+            designFront = row['Print area front']?.trim() || '';
+            designBack = row['Print area back']?.trim() || '';
+            mockup = row['Mockup Front']?.trim() || '';
+          }
           
-          // Áp dụng hàm sanitizeText cho các trường quan trọng cần đem đi so sánh
+          // ==========================================
+          // 3. ĐÓNG GÓI CHUẨN HÓA VÀ GỘP ĐƠN
+          // ==========================================
+          // Áp dụng hàm sanitizeText cho các trường quan trọng (giữ nguyên logic gốc)
           const newItem = {
-            sku: sanitizeText(row['SKU'] || row['Design SKU']),
-            type: sanitizeText(row['Type']),
-            color: sanitizeText(row['Color']),
-            size: sanitizeText(row['Size']),
-            quantity: parseInt(row['Quantity']) || 1,
-            design_front: row['Print area front']?.trim() || '',
-            design_back: row['Print area back']?.trim() || '',
-            mockup: row['Mockup Front']?.trim() || '',
+            sku: sanitizeText(rawSku),
+            type: sanitizeText(rawType),
+            color: sanitizeText(rawColor),
+            size: sanitizeText(rawSize),
+            quantity: rawQuantity,
+            design_front: designFront,
+            design_back: designBack,
+            mockup: mockup,
             extra_print_areas: []
           };
 
           if (ordersMap.has(orderId)) {
+            // Đã có mã đơn này -> Nhét thêm sản phẩm vào mảng items (Gộp đơn)
             const existingOrder = ordersMap.get(orderId);
             existingOrder.items.push(newItem);
           } else {
+            // Chưa có -> Tạo mới order
             ordersMap.set(orderId, {
               external_order_id: orderId,
-              tracking_number: sanitizeText(row['Tracking']),
+              tracking_number: sanitizeText(tracking),
               order_date: new Date().toISOString(),
-              customer_name: sanitizeText(row['Name']),
+              customer_name: sanitizeText(name),
               customer_email: '', customer_phone: '',
               shipping_address: {
-                line_1: row['Address line 1']?.trim() || '', 
-                line_2: row[addr2Key]?.trim() || '',
-                city: row['City']?.trim() || '', 
-                region: row['Region']?.trim() || '', 
-                zip: row['Zip']?.trim() || '', 
-                country: 'US'
+                line_1: line1, 
+                line_2: line2,
+                city: city, 
+                region: region, 
+                zip: zip, 
+                country: country
               },
               items: [newItem],
-              product_type: sanitizeText(row['Type']), 
+              product_type: sanitizeText(rawType), 
               order_price: 0, 
               order_note: '', 
-              status: 'pending'
+              status: 'pending' // Chờ update design
             });
           }
         });
@@ -462,11 +535,11 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
         setImportOrders(finalOrders);
         setImportCurrentPage(1);
-        setMessage(`Đã chuẩn bị ${finalOrders.length} đơn hàng (đã gộp các đơn trùng ID).`);
+        setMessage(`Đã chuẩn bị ${finalOrders.length} đơn hàng từ file CSV (đã gộp các đơn trùng ID).`);
       }
     });
     event.target.value = '';
-};
+  };
 
   // ==========================================
   // LOGIC ĐỒNG BỘ SKU 

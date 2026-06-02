@@ -17,6 +17,7 @@ export default function OrdersPage() {
   // ==========================================
   const [dbOrders, setDbOrders] = useState<any[]>([]);
   const [importOrders, setImportOrders] = useState<any[]>([]);
+  const [podBlanks, setPodBlanks] = useState<any[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isAddingToPay, setIsAddingToPay] = useState(false);
@@ -61,7 +62,18 @@ export default function OrdersPage() {
   useEffect(() => {
     setSelectedRows([]);
   }, [activeTab]);
-
+  
+  useEffect(() => {
+    const fetchPodBlanks = async () => {
+      try {
+        const res = await api.get('/partner/pod-blanks');
+        setPodBlanks(res.data.pod_blanks || res.data || []);
+      } catch (error) {
+        console.error("Lỗi lấy danh sách Phôi:", error);
+      }
+    };
+    if (selectedShopId) fetchPodBlanks();
+  }, [selectedShopId]);
   const handleBulkDeleteImport = async () => {
     const isConfirmed = await confirm({
       title: "Xóa danh sách Import",
@@ -490,9 +502,9 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
           // Áp dụng hàm sanitizeText cho các trường quan trọng (giữ nguyên logic gốc)
           const newItem = {
             sku: sanitizeText(rawSku),
-            type: sanitizeText(rawType),
-            color: sanitizeText(rawColor),
-            size: sanitizeText(rawSize),
+            type: '',
+            color: '',
+            size: '',
             quantity: rawQuantity,
             design_front: designFront,
             design_back: designBack,
@@ -1002,7 +1014,25 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   <td className="p-4 text-gray-500 text-xs truncate max-w-[200px]" title={renderJsonObject(order.shipping_address) as string}>
                     {renderJsonObject(order.shipping_address)}
                   </td>
-                  <td className="p-4">{renderProductColumn(order)}</td>
+                  <td className="p-4 align-top">
+                    <div className="flex flex-col gap-1.5 py-1">
+                      {order.items?.map((item: any, itemIdx: number) => (
+                        <div key={itemIdx} className="text-[10px] bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200 flex items-center gap-2 w-max shadow-sm">
+                          <span className="font-extrabold text-[#C29017] bg-[#C29017]/10 px-1.5 py-0.5 rounded">{item.quantity || 1}x</span>
+                          
+                          {/* HIỂN THỊ CẢNH BÁO NẾU CHƯA CÓ PHÔI */}
+                          {item.type ? (
+                            <>
+                               <span className="font-bold text-gray-800">{item.type}</span>
+                               <span className="text-gray-500 font-medium border-l pl-2 ml-1">({item.color || 'N/A'} - {item.size || 'N/A'})</span>
+                            </>
+                          ) : (
+                            <span className="font-bold text-red-500 uppercase tracking-wider animate-pulse">Chưa map phôi (Vui lòng bấm sửa)</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </td>
                   <td className="p-4 font-bold text-gray-900">${order.order_price}</td>
                 </tr>
               );
@@ -1381,46 +1411,91 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                     </div>
                     
                     {/* HÀNG 2: Thuộc tính cơ bản */}
+                    {/* HÀNG 2: Thuộc tính cơ bản (DROPDOWN MAPPING) */}
                     <div className="grid grid-cols-4 gap-4">
+                      
+                      {/* 1. DROPDOWN PHÔI (TYPE) */}
                       <div className="col-span-2">
-                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Loại sản phẩm</label>
-                        <input 
+                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Loại sản phẩm (Phôi)</label>
+                        <select 
                           disabled={isReadOnly} 
                           value={item.type || ''} 
                           onChange={(e) => {
+                            const newType = e.target.value;
+                            const selectedBlank = podBlanks.find(b => b.name === newType);
                             const newItems = [...editForm.items];
-                            newItems[index] = { ...newItems[index], type: e.target.value };
+                            
+                            newItems[index] = { ...newItems[index], type: newType };
+                            
+                            // Tự động gán SKU và xóa màu/size cũ nếu không khớp phôi mới
+                            if (selectedBlank) {
+                              newItems[index].sku = selectedBlank.sku;
+                              if (!selectedBlank.colors?.includes(newItems[index].color)) newItems[index].color = '';
+                              if (!selectedBlank.sizes?.includes(newItems[index].size)) newItems[index].size = '';
+                            }
+                            
                             setEditForm({ ...editForm, items: newItems });
                           }}
-                          className="w-full border p-2 rounded-lg text-sm bg-gray-50 outline-none focus:border-blue-500 disabled:bg-gray-100"
-                        />
+                          className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
+                        >
+                          <option value="" disabled>-- Vui lòng chọn Phôi áo --</option>
+                          
+                          {item.type && !podBlanks.find(b => b.name === item.type) && (
+                            <option value={item.type} disabled>{item.type} (Phôi đã ẩn)</option>
+                          )}
+                          
+                          {podBlanks.map(b => (
+                            <option key={b.id} value={b.name}>{b.name}</option>
+                          ))}
+                        </select>
                       </div>
+
+                      {/* 2. DROPDOWN MÀU */}
                       <div>
-                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Màu</label>
-                        <input 
-                          disabled={isReadOnly} 
+                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Màu sắc</label>
+                        <select 
+                          disabled={isReadOnly || !item.type} 
                           value={item.color || ''} 
                           onChange={(e) => {
                             const newItems = [...editForm.items];
                             newItems[index] = { ...newItems[index], color: e.target.value };
                             setEditForm({ ...editForm, items: newItems });
                           }}
-                          className="w-full border p-2 rounded-lg text-sm bg-gray-50 outline-none focus:border-blue-500 disabled:bg-gray-100"
-                        />
+                          className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.color && item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
+                        >
+                          <option value="">-- Chọn Màu --</option>
+                          {item.color && !(podBlanks.find(b => b.name === item.type)?.colors || []).includes(item.color) && (
+                            <option value={item.color} disabled>{item.color} (Đã ẩn)</option>
+                          )}
+                          {(podBlanks.find(b => b.name === item.type)?.colors || []).map((c: string) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
                       </div>
+
+                      {/* 3. DROPDOWN SIZE */}
                       <div>
-                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Size</label>
-                        <input 
-                          disabled={isReadOnly} 
+                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Kích cỡ</label>
+                        <select 
+                          disabled={isReadOnly || !item.type} 
                           value={item.size || ''} 
                           onChange={(e) => {
                             const newItems = [...editForm.items];
                             newItems[index] = { ...newItems[index], size: e.target.value };
                             setEditForm({ ...editForm, items: newItems });
                           }}
-                          className="w-full border p-2 rounded-lg text-sm bg-gray-50 outline-none focus:border-blue-500 disabled:bg-gray-100"
-                        />
+                          className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.size && item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
+                        >
+                          <option value="">-- Chọn Size --</option>
+                          {item.size && !(podBlanks.find(b => b.name === item.type)?.sizes || []).includes(item.size) && (
+                            <option value={item.size} disabled>{item.size} (Đã ẩn)</option>
+                          )}
+                          {(podBlanks.find(b => b.name === item.type)?.sizes || []).map((s: string) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
                       </div>
+                      
                     </div>
 
                     {/* HÀNG 3: Giao diện Box Hiển thị Hình ảnh Thiết kế (Visual Designs) */}

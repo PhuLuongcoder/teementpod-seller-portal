@@ -1364,8 +1364,24 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   )}
                 </div>
                 
-                {(editForm.items || []).map((item: any, index: number) => (
-                  <div key={index} className="p-5 bg-white shadow-sm rounded-xl border border-gray-200 space-y-5">
+                {(editForm.items || []).map((item: any, index: number) => {
+                  
+                  // 1. TÌM PHÔI ĐANG ĐƯỢC CHỌN VÀ ÉP KIỂU MÀU/SIZE VỀ ĐÚNG ARRAY
+                  const selectedBlank = podBlanks.find(b => b.name === item.type);
+                  
+                  const parseArraySafe = (data: any) => {
+                    if (Array.isArray(data)) return data;
+                    if (typeof data === 'string') {
+                      try { return JSON.parse(data) || []; } catch { return []; }
+                    }
+                    return [];
+                  };
+
+                  const availableColors = parseArraySafe(selectedBlank?.colors);
+                  const availableSizes = parseArraySafe(selectedBlank?.sizes);
+
+                  return (
+                    <div key={index} className="p-5 bg-white shadow-sm rounded-xl border border-gray-200 space-y-5">
                     
                     {/* HÀNG 1: Tiêu đề & Tính năng Nhập SKU */}
                     <div className="flex justify-between items-end border-b border-gray-100 pb-3">
@@ -1410,28 +1426,10 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                       )}
                     </div>
                     
-                    {/* HÀNG 2: Thuộc tính cơ bản */}
-                    {/* HÀNG 2: Thuộc tính cơ bản (DROPDOWN MAPPING) */}
-                    <div className="grid grid-cols-4 gap-4">
-                      
-                      {/* 1. DROPDOWN PHÔI (TYPE) */}
-                      <div className="col-span-2">
-                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Loại sản phẩm (Phôi)</label>
-                        <select 
-                          disabled={isReadOnly} 
-                          value={item.type || ''} 
-                          onChange={(e) => {
-                            const newType = e.target.value;
-                            const selectedBlank = podBlanks.find(b => b.name === newType);
-                            const newItems = [...editForm.items];
-                            
-                            newItems[index] = { ...newItems[index], type: newType };
-                            
-                            // Tự động gán SKU và xóa màu/size cũ nếu không khớp phôi mới
-                            if (selectedBlank) {
-                              newItems[index].sku = selectedBlank.sku;
-                              if (!selectedBlank.colors?.includes(newItems[index].color)) newItems[index].color = '';
-                              if (!selectedBlank.sizes?.includes(newItems[index].size)) newItems[index].size = '';
+                    const newBlankSizes = parseArraySafe(newBlank.sizes);
+                              
+                              if (!newBlankColors.includes(newItems[index].color)) newItems[index].color = '';
+                              if (!newBlankSizes.includes(newItems[index].size)) newItems[index].size = '';
                             }
                             
                             setEditForm({ ...editForm, items: newItems });
@@ -1439,11 +1437,9 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                           className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
                         >
                           <option value="" disabled>-- Vui lòng chọn Phôi áo --</option>
-                          
                           {item.type && !podBlanks.find(b => b.name === item.type) && (
                             <option value={item.type} disabled>{item.type} (Phôi đã ẩn)</option>
                           )}
-                          
                           {podBlanks.map(b => (
                             <option key={b.id} value={b.name}>{b.name}</option>
                           ))}
@@ -1464,10 +1460,10 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                           className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.color && item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
                         >
                           <option value="">-- Chọn Màu --</option>
-                          {item.color && !(podBlanks.find(b => b.name === item.type)?.colors || []).includes(item.color) && (
+                          {item.color && !availableColors.includes(item.color) && (
                             <option value={item.color} disabled>{item.color} (Đã ẩn)</option>
                           )}
-                          {(podBlanks.find(b => b.name === item.type)?.colors || []).map((c: string) => (
+                          {availableColors.map((c: string) => (
                             <option key={c} value={c}>{c}</option>
                           ))}
                         </select>
@@ -1487,10 +1483,10 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                           className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.size && item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
                         >
                           <option value="">-- Chọn Size --</option>
-                          {item.size && !(podBlanks.find(b => b.name === item.type)?.sizes || []).includes(item.size) && (
+                          {item.size && !availableSizes.includes(item.size) && (
                             <option value={item.size} disabled>{item.size} (Đã ẩn)</option>
                           )}
-                          {(podBlanks.find(b => b.name === item.type)?.sizes || []).map((s: string) => (
+                          {availableSizes.map((s: string) => (
                             <option key={s} value={s}>{s}</option>
                           ))}
                         </select>

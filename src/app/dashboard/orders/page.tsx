@@ -67,13 +67,19 @@ export default function OrdersPage() {
     const fetchPodBlanks = async () => {
       try {
         const res = await api.get('/partner/pod-blanks');
-        setPodBlanks(res.data.pod_blanks || res.data || []);
+        // Tìm đúng thuộc tính chứa mảng dữ liệu (pod_blanks, podBlanks, hoặc data)
+        const fetchedData = res.data?.pod_blanks || res.data?.podBlanks || res.data?.data || res.data;
+        
+        // CHỐT CHẶN AN TOÀN: Đảm bảo biến podBlanks luôn luôn là một Array (Mảng)
+        setPodBlanks(Array.isArray(fetchedData) ? fetchedData : []);
       } catch (error) {
         console.error("Lỗi lấy danh sách Phôi:", error);
+        setPodBlanks([]); // Ép về mảng rỗng nếu API lỗi để tránh sập trang
       }
     };
     if (selectedShopId) fetchPodBlanks();
   }, [selectedShopId]);
+  
   const handleBulkDeleteImport = async () => {
     const isConfirmed = await confirm({
       title: "Xóa danh sách Import",

@@ -1503,7 +1503,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                             }}
                             className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
                           >
-                            <option value="" disabled>-- Vui lòng chọn Phôi áo --</option>
+                            <option value="" disabled>Sản Phẩm</option>
                             {item.type && !podBlanks.find(b => b.name === item.type) && (
                               <option value={item.type} disabled>{item.type} (Phôi đã ẩn)</option>
                             )}
@@ -1526,7 +1526,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                             }}
                             className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.color && item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
                           >
-                            <option value="">-- Chọn Màu --</option>
+                            <option value="">Màu Áo</option>
                             {item.color && !availableColors.includes(item.color) && (
                               <option value={item.color} disabled>{item.color} (Đã ẩn)</option>
                             )}
@@ -1549,7 +1549,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                             }}
                             className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.size && item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
                           >
-                            <option value="">-- Chọn Size --</option>
+                            <option value="">Size Áo</option>
                             {item.size && !availableSizes.includes(item.size) && (
                               <option value={item.size} disabled>{item.size} (Đã ẩn)</option>
                             )}

@@ -157,16 +157,38 @@ export default function OrdersPage() {
 
   const handlePayOrders = async () => {
     if (selectedRows.length === 0) return;
+
+    // 1. TÌM VÀ LỌC CÁC ĐƠN HỢP LỆ (Đã map đủ Type, Color, Size)
+    const selectedOrderDetails = dbOrders.filter(order => selectedRows.includes(order.id));
+    
+    const validOrders = selectedOrderDetails.filter(order => {
+      if (!order.items || order.items.length === 0) return false;
+      return order.items.every((item: any) => item.type && item.color && item.size);
+    });
+
+    const invalidCount = selectedRows.length - validOrders.length;
+
+    if (validOrders.length === 0) {
+      return alert("Tất cả các đơn bạn chọn đều chưa được map Phôi/Màu/Size. Vui lòng bấm 'Sửa' từng đơn để chọn sản phẩm trước khi thanh toán!");
+    }
+
+    let confirmMessage = `Tiến hành thanh toán chi phí sản xuất cho ${validOrders.length} đơn hàng hợp lệ?`;
+    if (invalidCount > 0) {
+      confirmMessage += `\n\n(Hệ thống sẽ tự động bỏ qua ${invalidCount} đơn bị thiếu thông tin Phôi/Màu/Size mà bạn đã chọn)`;
+    }
+
     const isConfirmed = await confirm({
       title: "Thanh toán đơn hàng",
-      message: `Tiến hành thanh toán chi phí sản xuất cho ${selectedRows.length} đơn hàng đang chọn?`,
+      message: confirmMessage,
       confirmText: "Thanh toán ngay",
     });
 
     if (!isConfirmed) return;
     setIsAddingToPay(true);
     try {
-      const res = await api.post('/partner/orders/pay', { order_ids: selectedRows });
+      const validIds = validOrders.map(o => o.id);
+      const res = await api.post('/partner/orders/pay', { order_ids: validIds });
+      
       notify(res.data?.message || "Đã xử lý thanh toán đơn hàng thành công!");
       window.dispatchEvent(new Event('refresh_total_spend'));
       setSelectedRows([]);
@@ -177,32 +199,49 @@ export default function OrdersPage() {
       setIsAddingToPay(false);
     }
   };
+
   const handlePayAllPendingOrders = async () => {
     const isConfirmed = await confirm({
       title: "Thanh toán toàn bộ đơn",
-      message: "Tiến hành thanh toán chi phí sản xuất cho TẤT CẢ đơn hàng đang chờ thanh toán của cửa hàng này?",
+      message: "Tiến hành thanh toán chi phí sản xuất cho TẤT CẢ đơn hàng hợp lệ (đã cài đặt phôi) đang chờ thanh toán?",
       confirmText: "Thanh toán tất cả",
     });
 
     if (!isConfirmed) return;
     setIsAddingToPay(true);
     try {
-      // Dùng API export để lấy toàn bộ danh sách đơn pending (không bị giới hạn phân trang)
       const res = await api.get('/partner/orders/export', { 
         params: { shop_id: selectedShopId, status: 'pending' } 
       });
       const pendingOrders = res.data.orders || [];
       
       if (pendingOrders.length === 0) {
-        notify("Không có đơn hàng nào cần thanh toán.");
+        notify("Không có đơn hàng nào đang chờ thanh toán.");
         setIsAddingToPay(false);
         return;
       }
 
-      const orderIds = pendingOrders.map((o: any) => o.id);
-      const payRes = await api.post('/partner/orders/pay', { order_ids: orderIds });
+      const validPendingOrders = pendingOrders.filter((order: any) => {
+        if (!order.items || order.items.length === 0) return false;
+        return order.items.every((item: any) => item.type && item.color && item.size);
+      });
+
+      const invalidCount = pendingOrders.length - validPendingOrders.length;
+
+      if (validPendingOrders.length === 0) {
+        notify(`Có ${invalidCount} đơn pending nhưng TẤT CẢ đều chưa cấu hình Phôi/Màu/Size. Giao dịch đã bị hủy!`);
+        setIsAddingToPay(false);
+        return;
+      }
+
+      if (invalidCount > 0) {
+        notify(`Tiến hành thanh toán ${validPendingOrders.length} đơn hợp lệ. Đã tự động bỏ qua ${invalidCount} đơn chưa có thông tin phôi.`);
+      }
+
+      const validPendingIds = validPendingOrders.map((o: any) => o.id);
+      const payRes = await api.post('/partner/orders/pay', { order_ids: validPendingIds });
       
-      notify(payRes.data?.message || `Đã thanh toán thành công ${orderIds.length} đơn hàng!`);
+      notify(payRes.data?.message || "Đã thanh toán thành công tất cả đơn hàng hợp lệ!");
       window.dispatchEvent(new Event('refresh_total_spend'));
       setSelectedRows([]);
       fetchOrdersFromDB();
@@ -1382,290 +1421,309 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
                   return (
                     <div key={index} className="p-5 bg-white shadow-sm rounded-xl border border-gray-200 space-y-5">
-                    
-                    {/* HÀNG 1: Tiêu đề & Tính năng Nhập SKU */}
-                    <div className="flex justify-between items-end border-b border-gray-100 pb-3">
-                      <div className="flex-1 flex items-center gap-3">
-                        <span className="text-[10px] bg-gray-900 text-white px-2.5 py-1 rounded font-bold uppercase">Món #{index + 1}</span>
-                        <div className="flex items-center gap-2 max-w-sm w-full">
-                          <input 
-                            disabled={isReadOnly} 
-                            placeholder="Nhập mã SKU thiết kế..." 
-                            value={item.sku || ''} 
-                            onChange={(e) => {
-                              const newItems = [...editForm.items];
-                              newItems[index] = { ...newItems[index], sku: e.target.value };
-                              setEditForm({ ...editForm, items: newItems });
-                            }}
-                            className="w-full border p-1.5 px-3 rounded-lg text-xs bg-gray-50 outline-none focus:border-[#C29017] disabled:bg-gray-100 transition-colors"
-                          />
-                          {!isReadOnly && (
-                            <button 
-                              type="button"
-                              onClick={() => handleSyncSKU(index, item.sku)}
-                              disabled={isSyncingSKU === index || !item.sku}
-                              className="text-[10px] bg-[#C29017] text-white px-3 py-1.5 rounded-lg font-bold shadow-sm hover:bg-[#a67b13] transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0"
-                            >
-                              {isSyncingSKU === index ? <span className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span> : '⟳ Đồng bộ'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
                       
-                      {!isReadOnly && (editForm.items || []).length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newItems = editForm.items.filter((_: any, i: number) => i !== index);
-                            setEditForm({ ...editForm, items: newItems });
-                          }}
-                          className="text-[10px] text-red-500 bg-red-50 px-2.5 py-1 rounded hover:bg-red-100 font-bold transition ml-4 shrink-0"
-                        >
-                          Xóa mặt hàng
-                        </button>
-                      )}
-                    </div>
-                    
-                    const newBlankSizes = parseArraySafe(newBlank.sizes);
-                              
-                              if (!newBlankColors.includes(newItems[index].color)) newItems[index].color = '';
-                              if (!newBlankSizes.includes(newItems[index].size)) newItems[index].size = '';
-                            }
-                            
-                            setEditForm({ ...editForm, items: newItems });
-                          }}
-                          className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
-                        >
-                          <option value="" disabled>-- Vui lòng chọn Phôi áo --</option>
-                          {item.type && !podBlanks.find(b => b.name === item.type) && (
-                            <option value={item.type} disabled>{item.type} (Phôi đã ẩn)</option>
-                          )}
-                          {podBlanks.map(b => (
-                            <option key={b.id} value={b.name}>{b.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* 2. DROPDOWN MÀU */}
-                      <div>
-                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Màu sắc</label>
-                        <select 
-                          disabled={isReadOnly || !item.type} 
-                          value={item.color || ''} 
-                          onChange={(e) => {
-                            const newItems = [...editForm.items];
-                            newItems[index] = { ...newItems[index], color: e.target.value };
-                            setEditForm({ ...editForm, items: newItems });
-                          }}
-                          className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.color && item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
-                        >
-                          <option value="">-- Chọn Màu --</option>
-                          {item.color && !availableColors.includes(item.color) && (
-                            <option value={item.color} disabled>{item.color} (Đã ẩn)</option>
-                          )}
-                          {availableColors.map((c: string) => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* 3. DROPDOWN SIZE */}
-                      <div>
-                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Kích cỡ</label>
-                        <select 
-                          disabled={isReadOnly || !item.type} 
-                          value={item.size || ''} 
-                          onChange={(e) => {
-                            const newItems = [...editForm.items];
-                            newItems[index] = { ...newItems[index], size: e.target.value };
-                            setEditForm({ ...editForm, items: newItems });
-                          }}
-                          className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.size && item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
-                        >
-                          <option value="">-- Chọn Size --</option>
-                          {item.size && !availableSizes.includes(item.size) && (
-                            <option value={item.size} disabled>{item.size} (Đã ẩn)</option>
-                          )}
-                          {availableSizes.map((s: string) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                      </div>
-                      
-                    </div>
-
-                    {/* HÀNG 3: Giao diện Box Hiển thị Hình ảnh Thiết kế (Visual Designs) */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                      
-                      {/* Box Design Front */}
-                      <div className="flex gap-3 bg-blue-50/30 p-2.5 rounded-xl border border-blue-100">
-                        <div className="relative group/img shrink-0">
-                          <div className="w-24 h-24 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-blue-400">
-                            {item.design_front ? (
-                              <img
-                                src={imageError[`front-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_front)}
-                                alt="Front"
-                                className="w-full h-full object-contain"
-                                onError={() => setImageError((prev) => ({ ...prev, [`front-${index}`]: true }))}
-                              />
-                            ) : (
-                              <span className="text-[10px] text-gray-400 font-medium text-center">No Img<br/>Front</span>
+                      {/* HÀNG 1: Tiêu đề & Tính năng Nhập SKU */}
+                      <div className="flex justify-between items-end border-b border-gray-100 pb-3">
+                        <div className="flex-1 flex items-center gap-3">
+                          <span className="text-[10px] bg-gray-900 text-white px-2.5 py-1 rounded font-bold uppercase">Món #{index + 1}</span>
+                          <div className="flex items-center gap-2 max-w-sm w-full">
+                            <input 
+                              disabled={isReadOnly} 
+                              placeholder="Nhập mã SKU thiết kế..." 
+                              value={item.sku || ''} 
+                              onChange={(e) => {
+                                const newItems = [...editForm.items];
+                                newItems[index] = { ...newItems[index], sku: e.target.value };
+                                setEditForm({ ...editForm, items: newItems });
+                              }}
+                              className="w-full border p-1.5 px-3 rounded-lg text-xs bg-gray-50 outline-none focus:border-[#C29017] disabled:bg-gray-100 transition-colors"
+                            />
+                            {!isReadOnly && (
+                              <button 
+                                type="button"
+                                onClick={() => handleSyncSKU(index, item.sku)}
+                                disabled={isSyncingSKU === index || !item.sku}
+                                className="text-[10px] bg-[#C29017] text-white px-3 py-1.5 rounded-lg font-bold shadow-sm hover:bg-[#a67b13] transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0"
+                              >
+                                {isSyncingSKU === index ? <span className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span> : '⟳ Đồng bộ'}
+                              </button>
                             )}
                           </div>
-                          
-                          {/* Popup Ảnh to */}
-                          {item.design_front && !imageError[`front-${index}`] && (
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                              <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center">
-                                <img 
-                                  src={convertGoogleDriveUrl(item.design_front)} 
-                                  alt="Front Preview" 
-                                  className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg"
-                                />
-                              </div>
-                              <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
-                            </div>
-                          )}
                         </div>
-
-                        <div className="flex-1 flex flex-col justify-center">
-                          <label className="text-[10px] text-blue-600 font-bold uppercase mb-1">Mặt Trước</label>
-                          <input disabled={isReadOnly} placeholder="Nhập URL..." value={item.design_front || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_front: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full border border-blue-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-blue-500 disabled:bg-gray-50"/>
-                        </div>
-                      </div>
-
-                      {/* Box Design Back */}
-                      <div className="flex gap-3 bg-purple-50/30 p-2.5 rounded-xl border border-purple-100">
-                        <div className="relative group/img shrink-0">
-                          <div className="w-24 h-24 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-purple-400">
-                            {item.design_back ? (
-                              <img
-                                src={imageError[`back-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_back)}
-                                alt="Back"
-                                className="w-full h-full object-contain"
-                                onError={() => setImageError((prev) => ({ ...prev, [`back-${index}`]: true }))}
-                              />
-                            ) : (
-                              <span className="text-[10px] text-gray-400 font-medium text-center">No Img<br/>Back</span>
-                            )}
-                          </div>
-
-                          {/* Popup Ảnh to */}
-                          {item.design_back && !imageError[`back-${index}`] && (
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                              <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center">
-                                <img 
-                                  src={convertGoogleDriveUrl(item.design_back)} 
-                                  alt="Back Preview" 
-                                  className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg"
-                                />
-                              </div>
-                              <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex-1 flex flex-col justify-center">
-                          <label className="text-[10px] text-purple-600 font-bold uppercase mb-1">Mặt Sau</label>
-                          <input disabled={isReadOnly} placeholder="Nhập URL..." value={item.design_back || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_back: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full border border-purple-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-purple-500 disabled:bg-gray-50"/>
-                        </div>
-                      </div>
-
-                      {/* Box Mockup */}
-                      <div className="flex gap-3 bg-teal-50/30 p-2.5 rounded-xl border border-teal-100">
-                        <div className="relative group/img shrink-0">
-                          <div className="w-24 h-24 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-teal-400">
-                            {item.mockup ? (
-                              <img
-                                src={imageError[`mockup-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.mockup)}
-                                alt="Mockup"
-                                className="w-full h-full object-contain"
-                                onError={() => setImageError((prev) => ({ ...prev, [`mockup-${index}`]: true }))}
-                              />
-                            ) : (
-                              <span className="text-[10px] text-gray-400 font-medium text-center">No Img<br/>Mockup</span>
-                            )}
-                          </div>
-
-                          {/* Popup Ảnh to */}
-                          {item.mockup && !imageError[`mockup-${index}`] && (
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                              <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center">
-                                <img 
-                                  src={convertGoogleDriveUrl(item.mockup)} 
-                                  alt="Mockup Preview" 
-                                  className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg"
-                                />
-                              </div>
-                              <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex-1 flex flex-col justify-center">
-                          <label className="text-[10px] text-teal-600 font-bold uppercase mb-1">Mockup SP</label>
-                          <input disabled={isReadOnly} placeholder="Nhập URL..." value={item.mockup || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], mockup: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full border border-teal-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-teal-500 disabled:bg-gray-50"/>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* HÀNG 4: CÁC VÙNG IN TÙY CHỌN (EXTRA PRINT AREAS) - NÂNG CẤP */}
-                    <div className="pt-4 mt-4 border-t border-gray-100">
-                      <div className="flex justify-between items-center mb-3">
-                        <label className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Các vùng in tùy chọn (Tay áo, Cổ áo, Nhãn...)</label>
-                        {!isReadOnly && (
+                        
+                        {!isReadOnly && (editForm.items || []).length > 1 && (
                           <button
                             type="button"
                             onClick={() => {
-                              const newItems = [...editForm.items];
-                              const currentAreas = Array.isArray(newItems[index].extra_print_areas) ? newItems[index].extra_print_areas : [];
-                              newItems[index] = { ...newItems[index], extra_print_areas: [...currentAreas, { name: '', url: '' }] };
+                              const newItems = editForm.items.filter((_: any, i: number) => i !== index);
                               setEditForm({ ...editForm, items: newItems });
                             }}
-                            className="text-[10px] bg-gray-100 px-3 py-1.5 rounded-lg text-gray-700 font-bold hover:bg-gray-200 transition"
+                            className="text-[10px] text-red-500 bg-red-50 px-2.5 py-1 rounded hover:bg-red-100 font-bold transition ml-4 shrink-0"
                           >
-                            + Thêm vùng in
+                            Xóa mặt hàng
                           </button>
                         )}
                       </div>
-
-                      {Array.isArray(item.extra_print_areas) && item.extra_print_areas.length > 0 && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {item.extra_print_areas.map((area: any, aIdx: number) => (
-                            <div key={aIdx} className="flex gap-3 bg-gray-50/70 p-2.5 rounded-xl border border-gray-200 relative group/extra">
+                      
+                      {/* HÀNG 2: Thuộc tính cơ bản (DROPDOWN MAPPING) */}
+                      <div className="grid grid-cols-4 gap-4">
+                        
+                        {/* 1. DROPDOWN PHÔI (TYPE) */}
+                        <div className="col-span-2">
+                          <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Loại sản phẩm (Phôi)</label>
+                          <select 
+                            disabled={isReadOnly} 
+                            value={item.type || ''} 
+                            onChange={(e) => {
+                              const newType = e.target.value;
+                              const newBlank = podBlanks.find(b => b.name === newType);
+                              const newItems = [...editForm.items];
                               
-                              <div className="relative group/img shrink-0">
-                                <div className="w-16 h-16 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-gray-400">
-                                  {area.url ? (
-                                    <img src={imageError[`extra-${index}-${aIdx}`] ? '/no-image.png' : convertGoogleDriveUrl(area.url)} className="w-full h-full object-contain" onError={() => setImageError(prev => ({...prev, [`extra-${index}-${aIdx}`]: true}))} />
-                                  ) : (
-                                    <span className="text-[8px] text-gray-400 font-medium text-center">No Img</span>
-                                  )}
-                                </div>
-                                {area.url && !imageError[`extra-${index}-${aIdx}`] && (
-                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                                    <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center"><img src={convertGoogleDriveUrl(area.url)} className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg" /></div>
-                                    <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
-                                  </div>
-                                )}
-                              </div>
+                              newItems[index] = { ...newItems[index], type: newType };
+                              
+                              if (newBlank) {
+                                newItems[index].sku = newBlank.sku;
+                                const newBlankColors = parseArraySafe(newBlank.colors);
+                                const newBlankSizes = parseArraySafe(newBlank.sizes);
+                                
+                                if (!newBlankColors.includes(newItems[index].color)) newItems[index].color = '';
+                                if (!newBlankSizes.includes(newItems[index].size)) newItems[index].size = '';
+                              }
+                              
+                              setEditForm({ ...editForm, items: newItems });
+                            }}
+                            className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
+                          >
+                            <option value="" disabled>-- Vui lòng chọn Phôi áo --</option>
+                            {item.type && !podBlanks.find(b => b.name === item.type) && (
+                              <option value={item.type} disabled>{item.type} (Phôi đã ẩn)</option>
+                            )}
+                            {podBlanks.map(b => (
+                              <option key={b.id} value={b.name}>{b.name}</option>
+                            ))}
+                          </select>
+                        </div>
 
-                              <div className="flex-1 flex flex-col justify-center gap-1.5">
-                                <input disabled={isReadOnly} placeholder="Tên (VD: Left Sleeve)" value={area.name || ''} onChange={(e) => { const n = [...editForm.items]; n[index].extra_print_areas[aIdx].name = e.target.value; setEditForm({ ...editForm, items: n }); }} className="w-full border border-gray-200 p-1.5 rounded-md text-[11px] font-bold text-gray-800 bg-white outline-none focus:border-gray-500 disabled:bg-gray-50" />
-                                <input disabled={isReadOnly} placeholder="Link Design URL..." value={area.url || ''} onChange={(e) => { const n = [...editForm.items]; n[index].extra_print_areas[aIdx].url = e.target.value; setEditForm({ ...editForm, items: n }); }} className="w-full border border-gray-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-gray-500 disabled:bg-gray-50" />
-                              </div>
+                        {/* 2. DROPDOWN MÀU */}
+                        <div>
+                          <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Màu sắc</label>
+                          <select 
+                            disabled={isReadOnly || !item.type} 
+                            value={item.color || ''} 
+                            onChange={(e) => {
+                              const newItems = [...editForm.items];
+                              newItems[index] = { ...newItems[index], color: e.target.value };
+                              setEditForm({ ...editForm, items: newItems });
+                            }}
+                            className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.color && item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
+                          >
+                            <option value="">-- Chọn Màu --</option>
+                            {item.color && !availableColors.includes(item.color) && (
+                              <option value={item.color} disabled>{item.color} (Đã ẩn)</option>
+                            )}
+                            {availableColors.map((c: string) => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                          </select>
+                        </div>
 
-                              {!isReadOnly && (
-                                <button type="button" onClick={() => { const n = [...editForm.items]; n[index].extra_print_areas = n[index].extra_print_areas.filter((_: any, i: number) => i !== aIdx); setEditForm({ ...editForm, items: n }); }} className="absolute -top-2 -right-2 bg-red-100 text-red-500 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold hover:bg-red-500 hover:text-white transition opacity-0 group-hover/extra:opacity-100 shadow-sm">✕</button>
+                        {/* 3. DROPDOWN SIZE */}
+                        <div>
+                          <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Kích cỡ</label>
+                          <select 
+                            disabled={isReadOnly || !item.type} 
+                            value={item.size || ''} 
+                            onChange={(e) => {
+                              const newItems = [...editForm.items];
+                              newItems[index] = { ...newItems[index], size: e.target.value };
+                              setEditForm({ ...editForm, items: newItems });
+                            }}
+                            className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.size && item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
+                          >
+                            <option value="">-- Chọn Size --</option>
+                            {item.size && !availableSizes.includes(item.size) && (
+                              <option value={item.size} disabled>{item.size} (Đã ẩn)</option>
+                            )}
+                            {availableSizes.map((s: string) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                      </div>
+
+                      {/* HÀNG 3: Giao diện Box Hiển thị Hình ảnh Thiết kế (Visual Designs) */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                        
+                        {/* Box Design Front */}
+                        <div className="flex gap-3 bg-blue-50/30 p-2.5 rounded-xl border border-blue-100">
+                          <div className="relative group/img shrink-0">
+                            <div className="w-24 h-24 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-blue-400">
+                              {item.design_front ? (
+                                <img
+                                  src={imageError[`front-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_front)}
+                                  alt="Front"
+                                  className="w-full h-full object-contain"
+                                  onError={() => setImageError((prev) => ({ ...prev, [`front-${index}`]: true }))}
+                                />
+                              ) : (
+                                <span className="text-[10px] text-gray-400 font-medium text-center">No Img<br/>Front</span>
                               )}
                             </div>
-                          ))}
+                            
+                            {/* Popup Ảnh to */}
+                            {item.design_front && !imageError[`front-${index}`] && (
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center">
+                                  <img 
+                                    src={convertGoogleDriveUrl(item.design_front)} 
+                                    alt="Front Preview" 
+                                    className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg"
+                                  />
+                                </div>
+                                <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 flex flex-col justify-center">
+                            <label className="text-[10px] text-blue-600 font-bold uppercase mb-1">Mặt Trước</label>
+                            <input disabled={isReadOnly} placeholder="Nhập URL..." value={item.design_front || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_front: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full border border-blue-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-blue-500 disabled:bg-gray-50"/>
+                          </div>
                         </div>
-                      )}
+
+                        {/* Box Design Back */}
+                        <div className="flex gap-3 bg-purple-50/30 p-2.5 rounded-xl border border-purple-100">
+                          <div className="relative group/img shrink-0">
+                            <div className="w-24 h-24 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-purple-400">
+                              {item.design_back ? (
+                                <img
+                                  src={imageError[`back-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_back)}
+                                  alt="Back"
+                                  className="w-full h-full object-contain"
+                                  onError={() => setImageError((prev) => ({ ...prev, [`back-${index}`]: true }))}
+                                />
+                              ) : (
+                                <span className="text-[10px] text-gray-400 font-medium text-center">No Img<br/>Back</span>
+                              )}
+                            </div>
+
+                            {/* Popup Ảnh to */}
+                            {item.design_back && !imageError[`back-${index}`] && (
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center">
+                                  <img 
+                                    src={convertGoogleDriveUrl(item.design_back)} 
+                                    alt="Back Preview" 
+                                    className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg"
+                                  />
+                                </div>
+                                <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 flex flex-col justify-center">
+                            <label className="text-[10px] text-purple-600 font-bold uppercase mb-1">Mặt Sau</label>
+                            <input disabled={isReadOnly} placeholder="Nhập URL..." value={item.design_back || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_back: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full border border-purple-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-purple-500 disabled:bg-gray-50"/>
+                          </div>
+                        </div>
+
+                        {/* Box Mockup */}
+                        <div className="flex gap-3 bg-teal-50/30 p-2.5 rounded-xl border border-teal-100">
+                          <div className="relative group/img shrink-0">
+                            <div className="w-24 h-24 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-teal-400">
+                              {item.mockup ? (
+                                <img
+                                  src={imageError[`mockup-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.mockup)}
+                                  alt="Mockup"
+                                  className="w-full h-full object-contain"
+                                  onError={() => setImageError((prev) => ({ ...prev, [`mockup-${index}`]: true }))}
+                                />
+                              ) : (
+                                <span className="text-[10px] text-gray-400 font-medium text-center">No Img<br/>Mockup</span>
+                              )}
+                            </div>
+
+                            {/* Popup Ảnh to */}
+                            {item.mockup && !imageError[`mockup-${index}`] && (
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center">
+                                  <img 
+                                    src={convertGoogleDriveUrl(item.mockup)} 
+                                    alt="Mockup Preview" 
+                                    className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg"
+                                  />
+                                </div>
+                                <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 flex flex-col justify-center">
+                            <label className="text-[10px] text-teal-600 font-bold uppercase mb-1">Mockup SP</label>
+                            <input disabled={isReadOnly} placeholder="Nhập URL..." value={item.mockup || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], mockup: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full border border-teal-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-teal-500 disabled:bg-gray-50"/>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* HÀNG 4: CÁC VÙNG IN TÙY CHỌN (EXTRA PRINT AREAS) - NÂNG CẤP */}
+                      <div className="pt-4 mt-4 border-t border-gray-100">
+                        <div className="flex justify-between items-center mb-3">
+                          <label className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Các vùng in tùy chọn (Tay áo, Cổ áo, Nhãn...)</label>
+                          {!isReadOnly && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newItems = [...editForm.items];
+                                const currentAreas = Array.isArray(newItems[index].extra_print_areas) ? newItems[index].extra_print_areas : [];
+                                newItems[index] = { ...newItems[index], extra_print_areas: [...currentAreas, { name: '', url: '' }] };
+                                setEditForm({ ...editForm, items: newItems });
+                              }}
+                              className="text-[10px] bg-gray-100 px-3 py-1.5 rounded-lg text-gray-700 font-bold hover:bg-gray-200 transition"
+                            >
+                              + Thêm vùng in
+                            </button>
+                          )}
+                        </div>
+
+                        {Array.isArray(item.extra_print_areas) && item.extra_print_areas.length > 0 && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {item.extra_print_areas.map((area: any, aIdx: number) => (
+                              <div key={aIdx} className="flex gap-3 bg-gray-50/70 p-2.5 rounded-xl border border-gray-200 relative group/extra">
+                                
+                                <div className="relative group/img shrink-0">
+                                  <div className="w-16 h-16 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-gray-400">
+                                    {area.url ? (
+                                      <img src={imageError[`extra-${index}-${aIdx}`] ? '/no-image.png' : convertGoogleDriveUrl(area.url)} className="w-full h-full object-contain" onError={() => setImageError(prev => ({...prev, [`extra-${index}-${aIdx}`]: true}))} />
+                                    ) : (
+                                      <span className="text-[8px] text-gray-400 font-medium text-center">No Img</span>
+                                    )}
+                                  </div>
+                                  {area.url && !imageError[`extra-${index}-${aIdx}`] && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                      <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center"><img src={convertGoogleDriveUrl(area.url)} className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg" /></div>
+                                      <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex-1 flex flex-col justify-center gap-1.5">
+                                  <input disabled={isReadOnly} placeholder="Tên (VD: Left Sleeve)" value={area.name || ''} onChange={(e) => { const n = [...editForm.items]; n[index].extra_print_areas[aIdx].name = e.target.value; setEditForm({ ...editForm, items: n }); }} className="w-full border border-gray-200 p-1.5 rounded-md text-[11px] font-bold text-gray-800 bg-white outline-none focus:border-gray-500 disabled:bg-gray-50" />
+                                  <input disabled={isReadOnly} placeholder="Link Design URL..." value={area.url || ''} onChange={(e) => { const n = [...editForm.items]; n[index].extra_print_areas[aIdx].url = e.target.value; setEditForm({ ...editForm, items: n }); }} className="w-full border border-gray-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-gray-500 disabled:bg-gray-50" />
+                                </div>
+
+                                {!isReadOnly && (
+                                  <button type="button" onClick={() => { const n = [...editForm.items]; n[index].extra_print_areas = n[index].extra_print_areas.filter((_: any, i: number) => i !== aIdx); setEditForm({ ...editForm, items: n }); }} className="absolute -top-2 -right-2 bg-red-100 text-red-500 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold hover:bg-red-500 hover:text-white transition opacity-0 group-hover/extra:opacity-100 shadow-sm">✕</button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  );
+                })}
 
               <div className="pt-2">
                 <div className="space-y-4">

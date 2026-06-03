@@ -21,7 +21,7 @@ const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }:
   const [searchTerm, setSearchTerm] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
+  
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
@@ -1493,7 +1493,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       {/* MODAL CHI TIẾT/CHỈNH SỬA */}
       {editingIndex !== null && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col scale-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col scale-in">
             <div className="p-6 border-b flex justify-between items-center bg-gray-50">
               <h3 className="font-bold text-gray-800 text-lg">{isReadOnly ? 'Chi tiết đơn hàng' : 'Chỉnh sửa đơn hàng'}</h3>
               <button onClick={() => setEditingIndex(null)} className="text-3xl font-light hover:text-red-500">&times;</button>
@@ -1624,7 +1624,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                       </div>
                       
                       {/* HÀNG 2: Thuộc tính cơ bản (DROPDOWN MAPPING) */}
-                      <div className="grid grid-cols-4 gap-4">
+                      <div className="grid grid-cols-4 gap-4 overflow-visible">
                         
                         {/* 1. DROPDOWN PHÔI (TYPE) */}
                         <div className="col-span-2">

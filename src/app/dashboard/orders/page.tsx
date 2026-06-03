@@ -1503,7 +1503,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               
               {editForm.status === 'complete' && (
                 <div className="p-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-xs font-bold leading-relaxed">
-                  ℹ️ Đơn hàng đã được thanh toán và gửi đến Admin xưởng. Bạn vẫn có thể thay đổi thiết kế hoặc thông tin giao hàng ở đây, nhưng để đảm bảo an toàn, vui lòng liên hệ thêm bộ phận hỗ trợ xưởng để cập nhật kịp thời!
+                  Đơn hàng đã được thanh toán và gửi đến Admin xưởng. Bạn vẫn có thể thay đổi thiết kế hoặc thông tin giao hàng ở đây, nhưng để đảm bảo an toàn, vui lòng liên hệ thêm bộ phận hỗ trợ xưởng để cập nhật kịp thời!
                 </div>
               )}
               {['processing', 'in_transit', 'done', 'cancelled'].includes(editForm.status) && (
@@ -1641,7 +1641,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               newItems[index] = { ...newItems[index], type: newType };
                               
                               if (newBlank) {
-                                // Logic lọc lại màu/size hợp lệ khi đổi phôi
                                 const parseArraySafe = (data: any) => {
                                   if (Array.isArray(data)) return data;
                                   if (typeof data === 'string') {

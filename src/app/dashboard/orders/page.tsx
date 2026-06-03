@@ -1499,7 +1499,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               newItems[index] = { ...newItems[index], type: newType };
                               
                               if (newBlank) {
-                                newItems[index].sku = newBlank.sku;
                                 const newBlankColors = parseArraySafe(newBlank.colors);
                                 const newBlankSizes = parseArraySafe(newBlank.sizes);
                                 

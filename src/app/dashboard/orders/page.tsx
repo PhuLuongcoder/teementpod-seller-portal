@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Papa from 'papaparse';
 import api from '@/lib/axios';
 import { useShop } from '@/context/ShopContext';
@@ -452,7 +452,84 @@ export default function OrdersPage() {
     .replace(/\s+/g, ' ')
     .trim();
 };
+const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
+  // Đóng dropdown khi click ra ngoài
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [wrapperRef]);
+
+  // Lọc danh sách theo từ khóa
+  const filteredOptions = options.filter((opt: any) => 
+    opt.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (opt.sku && opt.sku.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      {/* Nút bấm để mở Dropdown */}
+      <div 
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={`w-full border p-2 rounded-lg text-sm flex justify-between items-center transition-colors ${
+          disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-gray-50 cursor-pointer hover:border-blue-400'
+        } ${!value ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
+      >
+        <span className="truncate">{value || placeholder}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      </div>
+
+      {/* Bảng danh sách sản phẩm và thanh tìm kiếm */}
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 flex flex-col">
+          <div className="p-2 border-b border-gray-100 bg-gray-50 sticky top-0 rounded-t-lg">
+            <input
+              type="text"
+              autoFocus
+              placeholder="Nhập tên phôi hoặc SKU để tìm..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full border border-gray-300 p-1.5 rounded-md text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div className="overflow-y-auto flex-1 p-1">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt: any) => (
+                <div
+                  key={opt.id}
+                  onClick={() => {
+                    onChange(opt.name);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                  className={`p-2 text-sm rounded-md cursor-pointer transition-colors ${
+                    value === opt.name ? 'bg-[#C29017]/10 text-[#C29017] font-bold' : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  {opt.name}
+                </div>
+              ))
+            ) : (
+              <div className="p-3 text-center text-xs text-gray-500 italic">
+                Không tìm thấy phôi phù hợp.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !selectedShopId) return;
@@ -1354,7 +1431,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col scale-in">
             <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-              <h3 className="font-bold text-gray-800 text-lg">{isReadOnly ? 'Chi tiết đơn hàng' : '🛠️ Chỉnh sửa đơn hàng'}</h3>
+              <h3 className="font-bold text-gray-800 text-lg">{isReadOnly ? 'Chi tiết đơn hàng' : 'Chỉnh sửa đơn hàng'}</h3>
               <button onClick={() => setEditingIndex(null)} className="text-3xl font-light hover:text-red-500">&times;</button>
             </div>
             
@@ -1488,17 +1565,26 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         {/* 1. DROPDOWN PHÔI (TYPE) */}
                         <div className="col-span-2">
                           <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Loại sản phẩm (Phôi)</label>
-                          <select 
-                            disabled={isReadOnly} 
-                            value={item.type || ''} 
-                            onChange={(e) => {
-                              const newType = e.target.value;
+                          <SearchableDropdown
+                            disabled={isReadOnly}
+                            value={item.type || ''}
+                            placeholder="Chọn sản phẩm..."
+                            options={podBlanks}
+                            onChange={(newType: string) => {
                               const newBlank = podBlanks.find(b => b.name === newType);
                               const newItems = [...editForm.items];
                               
                               newItems[index] = { ...newItems[index], type: newType };
                               
                               if (newBlank) {
+                                // Logic lọc lại màu/size hợp lệ khi đổi phôi
+                                const parseArraySafe = (data: any) => {
+                                  if (Array.isArray(data)) return data;
+                                  if (typeof data === 'string') {
+                                    try { return JSON.parse(data) || []; } catch { return []; }
+                                  }
+                                  return [];
+                                };
                                 const newBlankColors = parseArraySafe(newBlank.colors);
                                 const newBlankSizes = parseArraySafe(newBlank.sizes);
                                 
@@ -1508,16 +1594,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               
                               setEditForm({ ...editForm, items: newItems });
                             }}
-                            className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
-                          >
-                            <option value="" disabled>Sản Phẩm</option>
-                            {item.type && !podBlanks.find(b => b.name === item.type) && (
-                              <option value={item.type} disabled>{item.type} (Phôi đã ẩn)</option>
-                            )}
-                            {podBlanks.map(b => (
-                              <option key={b.id} value={b.name}>{b.name}</option>
-                            ))}
-                          </select>
+                          />
                         </div>
 
                         {/* 2. DROPDOWN MÀU */}

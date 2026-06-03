@@ -1671,19 +1671,17 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               value={item.sku || ''}
                               options={sellerDesigns}
                               onChange={(newSku) => {
-                                // Người dùng đang tự gõ một SKU mới
                                 const newItems = [...editForm.items];
                                 newItems[index] = { ...newItems[index], sku: newSku };
                                 setEditForm({ ...editForm, items: newItems });
                               }}
                               onSelect={(matchedDesign) => {
-                                // Người dùng bấm chọn 1 SKU có sẵn -> Tự động điền link
                                 const newItems = [...editForm.items];
                                 const libraryExtraAreas = matchedDesign.extra_print_areas || [];
 
                                 newItems[index] = {
                                   ...newItems[index],
-                                  sku: matchedDesign.sku, // Gán SKU
+                                  sku: matchedDesign.sku,
                                   design_front: matchedDesign.design_front_url || newItems[index].design_front,
                                   design_back: matchedDesign.design_back_url || newItems[index].design_back,
                                   mockup: matchedDesign.mockup_url || newItems[index].mockup,
@@ -1691,7 +1689,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                 };
                                 setEditForm({ ...editForm, items: newItems });
 
-                                // Quan trọng: Xóa bộ nhớ cache lỗi ảnh để ảnh load lại ngay lập tức
+                                // Xóa bộ nhớ cache lỗi ảnh để ảnh load lại ngay lập tức
                                 setImageError(prev => ({
                                   ...prev, 
                                   [`front-${index}`]: false, 
@@ -1699,20 +1697,12 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                   [`mockup-${index}`]: false
                                 }));
 
-                                notify(`🎉 Đã đồng bộ thiết kế thành công cho: ${matchedDesign.sku}`);
+                                notify(`Đã đồng bộ thiết kế thành công cho: ${matchedDesign.sku}`);
                               }}
                             />
 
                           </div>
                         </div>
-                        
-                        {!isReadOnly && (editForm.items || []).length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                               // Logic xóa mặt hàng giữ nguyên...
-                            }}
-                          // ...
                         
                         {!isReadOnly && (editForm.items || []).length > 1 && (
                           <button

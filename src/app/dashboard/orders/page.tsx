@@ -7,6 +7,93 @@ import { useShop } from '@/context/ShopContext';
 import { SquareTwoStack } from "@medusajs/icons"
 import { useConfirm } from '@/context/ConfirmContext';
 
+// Giao diện Search + Dropdownbox
+interface SearchableDropdownProps {
+  value: string;
+  options: any[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+}
+const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }: SearchableDropdownProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Đóng dropdown khi click ra ngoài
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [wrapperRef]);
+
+  // Lọc danh sách theo từ khóa
+  const filteredOptions = options.filter((opt: any) => 
+    opt.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (opt.sku && opt.sku.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      {/* Nút bấm để mở Dropdown */}
+      <div 
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={`w-full border p-2 rounded-lg text-sm flex justify-between items-center transition-colors ${
+          disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-gray-50 cursor-pointer hover:border-blue-400'
+        } ${!value ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
+      >
+        <span className="truncate">{value || placeholder}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      </div>
+
+      {/* Bảng danh sách sản phẩm và thanh tìm kiếm */}
+      {isOpen && (
+        <div className="absolute z-[999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 flex flex-col">
+          <div className="p-2 border-b border-gray-100 bg-gray-50 sticky top-0 rounded-t-lg">
+            <input
+              type="text"
+              autoFocus
+              placeholder="Nhập tên phôi hoặc SKU để tìm..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full border border-gray-300 p-1.5 rounded-md text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div className="overflow-y-auto flex-1 p-1">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt: any) => (
+                <div
+                  key={opt.id}
+                  onClick={() => {
+                    onChange(opt.name);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                  className={`p-2 text-sm rounded-md cursor-pointer transition-colors ${
+                    value === opt.name ? 'bg-[#C29017]/10 text-[#C29017] font-bold' : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  {opt.name}
+                </div>
+              ))
+            ) : (
+              <div className="p-3 text-center text-xs text-gray-500 italic">
+                Không tìm thấy phôi phù hợp.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function OrdersPage() {
   const { confirm, notify } = useConfirm();
   const { selectedShopId } = useShop();
@@ -452,91 +539,7 @@ export default function OrdersPage() {
     .replace(/\s+/g, ' ')
     .trim();
 };
-interface SearchableDropdownProps {
-  value: string;
-  options: any[];
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  placeholder?: string;
-}
-const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }: SearchableDropdownProps) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Đóng dropdown khi click ra ngoài
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [wrapperRef]);
-
-  // Lọc danh sách theo từ khóa
-  const filteredOptions = options.filter((opt: any) => 
-    opt.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (opt.sku && opt.sku.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
-  return (
-    <div className="relative w-full" ref={wrapperRef}>
-      {/* Nút bấm để mở Dropdown */}
-      <div 
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full border p-2 rounded-lg text-sm flex justify-between items-center transition-colors ${
-          disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-gray-50 cursor-pointer hover:border-blue-400'
-        } ${!value ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
-      >
-        <span className="truncate">{value || placeholder}</span>
-        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-        </svg>
-      </div>
-
-      {/* Bảng danh sách sản phẩm và thanh tìm kiếm */}
-      {isOpen && (
-        <div className="absolute z-[999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 flex flex-col">
-          <div className="p-2 border-b border-gray-100 bg-gray-50 sticky top-0 rounded-t-lg">
-            <input
-              type="text"
-              autoFocus
-              placeholder="Nhập tên phôi hoặc SKU để tìm..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full border border-gray-300 p-1.5 rounded-md text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <div className="overflow-y-auto flex-1 p-1">
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt: any) => (
-                <div
-                  key={opt.id}
-                  onClick={() => {
-                    onChange(opt.name);
-                    setIsOpen(false);
-                    setSearchTerm('');
-                  }}
-                  className={`p-2 text-sm rounded-md cursor-pointer transition-colors ${
-                    value === opt.name ? 'bg-[#C29017]/10 text-[#C29017] font-bold' : 'hover:bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  {opt.name}
-                </div>
-              ))
-            ) : (
-              <div className="p-3 text-center text-xs text-gray-500 italic">
-                Không tìm thấy phôi phù hợp.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !selectedShopId) return;

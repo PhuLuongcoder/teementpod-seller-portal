@@ -768,22 +768,23 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       ? `${items[0]?.type} (+${items.length - 1} món khác)`
       : (items[0]?.type || '');
 
-    // 3. TÍNH TOÁN LẠI GIÁ TIỀN (Hiển thị đúng ngay sau khi Seller bấm Cập nhật)
+    // 3. TÍNH TOÁN LẠI GIÁ TIỀN
     let tempOrderPrice = 0;
     items.forEach((it: any) => {
       const blank = podBlanks.find(b => b.name === it.type);
       if (blank && blank.display_price) {
-        // Tạm tính = Giá base của phôi * Số lượng
         tempOrderPrice += blank.display_price * (it.quantity || 1);
       }
     });
 
+    // Cập nhật state nội bộ
     const updatedOrderData = { 
       ...editForm, 
       product_type: newProductType,
       order_price: tempOrderPrice > 0 ? tempOrderPrice : editForm.order_price,
       special_print_areas: Object.keys(spObj).length > 0 ? spObj : null,
-      mockup_urls: Object.keys(muObj).length > 0 ? muObj : null 
+      mockup_urls: Object.keys(muObj).length > 0 ? muObj : null,
+      product_detail: JSON.stringify(items) // <--- THÊM DÒNG NÀY ĐỂ ÉP KIỂU ITEMS THÀNH CHUỖI JSON
     };
 
     if (editSource === 'import') {
@@ -793,18 +794,24 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       setEditingIndex(null); 
     } else if (editSource === 'db') {
       try {
-        // Cập nhật giao diện ngay lập tức (Optimistic UI) để Seller thấy giá mới
+        // Cập nhật giao diện ngay lập tức (Optimistic UI)
         const newDbOrders = [...dbOrders];
         newDbOrders[editingIndex] = updatedOrderData;
         setDbOrders(newDbOrders);
 
+        // Tạo payload chuẩn hóa cho Backend (Loại bỏ mảng items để tránh lỗi giống lúc Sync Import)
+        const payloadForApi = {
+          ...updatedOrderData,
+          items: undefined 
+        };
+
         await api.post('/partner/orders', { 
-          orders: [updatedOrderData], 
+          orders: [payloadForApi], // <--- GỬI PAYLOAD ĐÃ CHUẨN HÓA LÊN BACKEND
           target_shop_id: selectedShopId 
         });
         
         notify("Lưu thay đổi thành công!");
-        fetchOrdersFromDB(); // Gọi ngầm API để backend kéo lại giá chính xác (gồm cả ship/markup)
+        fetchOrdersFromDB(); 
         setEditingIndex(null);
       } catch (err: any) {
         alert(err.response?.data?.error || "Lỗi lưu dữ liệu.");

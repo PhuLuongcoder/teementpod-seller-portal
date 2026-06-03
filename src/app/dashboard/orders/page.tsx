@@ -25,6 +25,7 @@ const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }:
     function handleClickOutside(event: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setSearchTerm('');
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -32,10 +33,12 @@ const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }:
   }, [wrapperRef]);
 
   // Lọc danh sách theo từ khóa
-  const filteredOptions = options.filter((opt: any) => 
-    opt.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (opt.sku && opt.sku.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredOptions = options.filter((opt: any) => {
+  const name = (opt.name || opt.title || '').toLowerCase();
+  const sku = (opt.sku || '').toLowerCase();
+  const term = searchTerm.toLowerCase();
+  return name.includes(term) || sku.includes(term);
+});
 
   return (
     <div className="relative w-full" ref={wrapperRef}>

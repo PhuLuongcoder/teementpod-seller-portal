@@ -147,7 +147,73 @@ const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }:
     </div>
   );
 };
+interface SkuComboboxProps {
+  value: string;
+  options: any[];
+  disabled?: boolean;
+  onChange: (newSku: string) => void;
+  onSelect: (design: any) => void;
+}
 
+const SkuCombobox = ({ value, options, disabled, onChange, onSelect }: SkuComboboxProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(opt => 
+    (opt.sku || '').toLowerCase().includes((value || '').toLowerCase())
+  );
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <input
+        type="text"
+        disabled={disabled}
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value); // Vẫn cho phép gõ SKU mới bình thường
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        placeholder="Nhập mã mới hoặc tìm SKU có sẵn..."
+        className="w-full border p-1.5 px-3 rounded-lg text-xs bg-gray-50 outline-none focus:border-[#C29017] disabled:bg-gray-100 transition-colors"
+      />
+      
+      {/* Khung gợi ý thiết kế có sẵn */}
+      {isOpen && !disabled && filteredOptions.length > 0 && (
+        <div className="absolute z-[999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+          {filteredOptions.map((opt) => (
+            <div
+              key={opt.id}
+              onMouseDown={(e) => {
+                e.preventDefault(); // Chặn mất focus để onClick hoạt động mượt mà
+                onSelect(opt);
+                setIsOpen(false);
+              }}
+              className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0"
+            >
+              <div className="font-bold text-gray-800">{opt.sku}</div>
+              {(opt.design_front_url || opt.design_back_url) && (
+                <div className="text-[9px] text-gray-400 mt-0.5 truncate">
+                  Đã có dữ liệu in {opt.extra_print_areas?.length > 0 ? `+ ${opt.extra_print_areas.length} vùng phụ` : ''}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 export default function OrdersPage() {
   const { confirm, notify } = useConfirm();
   const { selectedShopId } = useShop();
@@ -156,6 +222,7 @@ export default function OrdersPage() {
   // ==========================================
   // 1. STATE QUẢN LÝ
   // ==========================================
+  const [sellerDesigns, setSellerDesigns] = useState<any[]>([]);
   const [dbOrders, setDbOrders] = useState<any[]>([]);
   const [importOrders, setImportOrders] = useState<any[]>([]);
   const [podBlanks, setPodBlanks] = useState<any[]>([]);
@@ -221,7 +288,19 @@ export default function OrdersPage() {
     };
     if (selectedShopId) fetchPodBlanks();
   }, [selectedShopId]);
-  
+  useEffect(() => {
+    const fetchDesigns = async () => {
+      try {
+        const res = await api.get('/partner/designs', { 
+          params: { shop_id: selectedShopId, limit: 2000 } // Tải tối đa 2000 design gần nhất
+        });
+        setSellerDesigns(res.data.designs || []);
+      } catch (error) {
+        console.error("Lỗi lấy danh sách Design:", error);
+      }
+    };
+    if (selectedShopId) fetchDesigns();
+  }, [selectedShopId]);
   const handleBulkDeleteImport = async () => {
     const isConfirmed = await confirm({
       title: "Xóa danh sách Import",
@@ -1585,29 +1664,55 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         <div className="flex-1 flex items-center gap-3">
                           <span className="text-[10px] bg-gray-900 text-white px-2.5 py-1 rounded font-bold uppercase">Món #{index + 1}</span>
                           <div className="flex items-center gap-2 max-w-sm w-full">
-                            <input 
-                              disabled={isReadOnly} 
-                              placeholder="Nhập mã SKU thiết kế..." 
-                              value={item.sku || ''} 
-                              onChange={(e) => {
+                            
+                            {/* COMPONENT COMBOBOX SKU MỚI */}
+                            <SkuCombobox
+                              disabled={isReadOnly}
+                              value={item.sku || ''}
+                              options={sellerDesigns}
+                              onChange={(newSku) => {
+                                // Người dùng đang tự gõ một SKU mới
                                 const newItems = [...editForm.items];
-                                newItems[index] = { ...newItems[index], sku: e.target.value };
+                                newItems[index] = { ...newItems[index], sku: newSku };
                                 setEditForm({ ...editForm, items: newItems });
                               }}
-                              className="w-full border p-1.5 px-3 rounded-lg text-xs bg-gray-50 outline-none focus:border-[#C29017] disabled:bg-gray-100 transition-colors"
+                              onSelect={(matchedDesign) => {
+                                // Người dùng bấm chọn 1 SKU có sẵn -> Tự động điền link
+                                const newItems = [...editForm.items];
+                                const libraryExtraAreas = matchedDesign.extra_print_areas || [];
+
+                                newItems[index] = {
+                                  ...newItems[index],
+                                  sku: matchedDesign.sku, // Gán SKU
+                                  design_front: matchedDesign.design_front_url || newItems[index].design_front,
+                                  design_back: matchedDesign.design_back_url || newItems[index].design_back,
+                                  mockup: matchedDesign.mockup_url || newItems[index].mockup,
+                                  extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : newItems[index].extra_print_areas
+                                };
+                                setEditForm({ ...editForm, items: newItems });
+
+                                // Quan trọng: Xóa bộ nhớ cache lỗi ảnh để ảnh load lại ngay lập tức
+                                setImageError(prev => ({
+                                  ...prev, 
+                                  [`front-${index}`]: false, 
+                                  [`back-${index}`]: false, 
+                                  [`mockup-${index}`]: false
+                                }));
+
+                                notify(`🎉 Đã đồng bộ thiết kế thành công cho: ${matchedDesign.sku}`);
+                              }}
                             />
-                            {!isReadOnly && (
-                              <button 
-                                type="button"
-                                onClick={() => handleSyncSKU(index, item.sku)}
-                                disabled={isSyncingSKU === index || !item.sku}
-                                className="text-[10px] bg-[#C29017] text-white px-3 py-1.5 rounded-lg font-bold shadow-sm hover:bg-[#a67b13] transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0"
-                              >
-                                {isSyncingSKU === index ? <span className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span> : '⟳ Đồng bộ'}
-                              </button>
-                            )}
+
                           </div>
                         </div>
+                        
+                        {!isReadOnly && (editForm.items || []).length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                               // Logic xóa mặt hàng giữ nguyên...
+                            }}
+                          // ...
                         
                         {!isReadOnly && (editForm.items || []).length > 1 && (
                           <button

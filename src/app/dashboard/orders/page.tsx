@@ -15,78 +15,129 @@ interface SearchableDropdownProps {
   disabled?: boolean;
   placeholder?: string;
 }
+
 const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }: SearchableDropdownProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Đóng dropdown khi click ra ngoài
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        setSearchTerm('');
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [wrapperRef]);
+  }, []);
 
-  // Lọc danh sách theo từ khóa
+  // Fix lỗi crash: dùng optional chaining thay vì gọi thẳng .toLowerCase()
   const filteredOptions = options.filter((opt: any) => {
-  const name = (opt.name || opt.title || '').toLowerCase();
-  const sku = (opt.sku || '').toLowerCase();
-  const term = searchTerm.toLowerCase();
-  return name.includes(term) || sku.includes(term);
-});
+    const name = (opt.name || '').toLowerCase();
+    const sku  = (opt.sku  || '').toLowerCase();
+    const term = searchTerm.toLowerCase();
+    return name.includes(term) || sku.includes(term);
+  });
+
+  const handleSelect = (name: string) => {
+    onChange(name);
+    setSearchTerm('');
+    setIsOpen(false);
+  };
+
+  const handleClear = () => {
+    setSearchTerm('');
+    inputRef.current?.focus();
+  };
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
-      {/* Nút bấm để mở Dropdown */}
-      <div 
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full border p-2 rounded-lg text-sm flex justify-between items-center transition-colors ${
-          disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-gray-50 cursor-pointer hover:border-blue-400'
-        } ${!value ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
-      >
-        <span className="truncate">{value || placeholder}</span>
-        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-        </svg>
+      {/* SEARCH BOX — luôn hiển thị, tách biệt hoàn toàn */}
+      <div className="flex items-center gap-2">
+        <div
+          className={`flex-1 flex items-center gap-2 h-9 px-2.5 border rounded-lg transition-all
+            ${disabled
+              ? 'bg-gray-100 opacity-60 pointer-events-none border-gray-200'
+              : 'bg-white border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/20'
+            }`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-gray-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input
+            ref={inputRef}
+            type="text"
+            disabled={disabled}
+            value={searchTerm}
+            placeholder={value ? `Đang chọn: ${value}` : (placeholder || 'Nhập tên phôi hoặc SKU...')}
+            onFocus={() => setIsOpen(true)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsOpen(true);
+            }}
+            onKeyDown={(e) => e.key === 'Escape' && setIsOpen(false)}
+            className="flex-1 bg-transparent text-xs outline-none text-gray-700 placeholder:text-gray-400 min-w-0"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); handleClear(); }}
+              className="text-gray-400 hover:text-gray-600 shrink-0"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                <path d="M18 6 6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* PILL — hiện tên đang chọn, tách biệt khỏi search box */}
+        {value && (
+          <div className="flex items-center gap-1.5 h-9 px-2.5 border border-gray-200 rounded-lg bg-gray-50 text-xs text-gray-500 shrink-0 max-w-[160px]">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span className="truncate">{value}</span>
+          </div>
+        )}
       </div>
 
-      {/* Bảng danh sách sản phẩm và thanh tìm kiếm */}
+      {/* RESULTS PANEL — chỉ chứa danh sách, không lẫn search box */}
       {isOpen && (
-        <div className="absolute z-[999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 flex flex-col">
-          <div className="p-2 border-b border-gray-100 bg-gray-50 sticky top-0 rounded-t-lg">
-            <input
-              type="text"
-              autoFocus
-              placeholder="Nhập tên phôi hoặc SKU để tìm..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full border border-gray-300 p-1.5 rounded-md text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            />
+        <div className="absolute z-[999] w-full mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden flex flex-col">
+          <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+            {searchTerm
+              ? `${filteredOptions.length} kết quả cho "${searchTerm}"`
+              : 'Tất cả sản phẩm'}
           </div>
-          <div className="overflow-y-auto flex-1 p-1">
+          <div className="overflow-y-auto max-h-52 p-1">
             {filteredOptions.length > 0 ? (
               filteredOptions.map((opt: any) => (
                 <div
                   key={opt.id}
-                  onClick={() => {
-                    onChange(opt.name);
-                    setIsOpen(false);
-                    setSearchTerm('');
-                  }}
-                  className={`p-2 text-sm rounded-md cursor-pointer transition-colors ${
-                    value === opt.name ? 'bg-[#C29017]/10 text-[#C29017] font-bold' : 'hover:bg-gray-100 text-gray-700'
-                  }`}
+                  onMouseDown={(e) => { e.preventDefault(); handleSelect(opt.name); }}
+                  className={`flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition-colors
+                    ${value === opt.name
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'hover:bg-gray-100 text-gray-700'
+                    }`}
                 >
-                  {opt.name}
+                  <div>
+                    <div className="text-sm font-medium leading-tight">{opt.name}</div>
+                    {opt.sku && (
+                      <div className="text-[10px] text-gray-400 font-mono mt-0.5">{opt.sku}</div>
+                    )}
+                  </div>
+                  {value === opt.name && (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  )}
                 </div>
               ))
             ) : (
-              <div className="p-3 text-center text-xs text-gray-500 italic">
+              <div className="py-5 text-center text-xs text-gray-400 italic">
                 Không tìm thấy phôi phù hợp.
               </div>
             )}

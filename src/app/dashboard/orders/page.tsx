@@ -452,7 +452,14 @@ export default function OrdersPage() {
     .replace(/\s+/g, ' ')
     .trim();
 };
-const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }) => {
+interface SearchableDropdownProps {
+  value: string;
+  options: any[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+}
+const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }: SearchableDropdownProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -491,7 +498,7 @@ const SearchableDropdown = ({ value, options, onChange, disabled, placeholder })
 
       {/* Bảng danh sách sản phẩm và thanh tìm kiếm */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 flex flex-col">
+        <div className="absolute z-[999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 flex flex-col">
           <div className="p-2 border-b border-gray-100 bg-gray-50 sticky top-0 rounded-t-lg">
             <input
               type="text"

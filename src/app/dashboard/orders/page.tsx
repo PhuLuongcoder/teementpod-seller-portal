@@ -776,9 +776,9 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
           // Áp dụng hàm sanitizeText cho các trường quan trọng (giữ nguyên logic gốc)
           const newItem = {
             sku: sanitizeText(rawSku),
-            type: '',
-            color: '',
-            size: '',
+            type: sanitizeText(rawType),  
+            color: sanitizeText(rawColor), 
+            size: sanitizeText(rawSize),
             quantity: rawQuantity,
             design_front: designFront,
             design_back: designBack,

@@ -1624,23 +1624,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             
             {/* Body Modal */}
             <div className="p-8 overflow-y-auto space-y-8">
-              /* {/* === BẢNG THÔNG TIN YÊU CẦU GỐC TỪ FILE CSV === */}
-              {editForm.items?.some((i: any) => i.original_string) && (
-                <div className="p-4 bg-amber-50/60 border border-amber-200/80 text-amber-900 rounded-xl text-sm leading-relaxed shadow-sm">
-                  <div className="font-extrabold uppercase tracking-widest text-[10px] mb-2 flex items-center gap-2 text-amber-700">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                    Yêu cầu gốc của khách (Từ file Import)
-                  </div>
-                  <div className="space-y-1.5">
-                    {editForm.items.map((item: any, idx: number) => item.original_string && (
-                      <div key={idx} className="flex gap-2">
-                        <span className="font-bold min-w-[65px]">Món #{idx + 1}:</span>
-                        <span className="font-medium text-amber-800">{item.original_string}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )} */
+             
               {/* Cảnh báo khóa đơn */}
               {editForm.status === 'complete' && (
                 <div className="p-4 bg-blue-50/80 ring-1 ring-blue-200 text-blue-800 rounded-2xl text-xs font-bold leading-relaxed shadow-sm">

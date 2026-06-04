@@ -1624,7 +1624,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             
             {/* Body Modal */}
             <div className="p-8 overflow-y-auto space-y-8">
-              {/* === BẢNG THÔNG TIN YÊU CẦU GỐC TỪ FILE CSV === */}
+              /* {/* === BẢNG THÔNG TIN YÊU CẦU GỐC TỪ FILE CSV === */}
               {editForm.items?.some((i: any) => i.original_string) && (
                 <div className="p-4 bg-amber-50/60 border border-amber-200/80 text-amber-900 rounded-xl text-sm leading-relaxed shadow-sm">
                   <div className="font-extrabold uppercase tracking-widest text-[10px] mb-2 flex items-center gap-2 text-amber-700">
@@ -1640,7 +1640,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                     ))}
                   </div>
                 </div>
-              )}
+              )} */
               {/* Cảnh báo khóa đơn */}
               {editForm.status === 'complete' && (
                 <div className="p-4 bg-blue-50/80 ring-1 ring-blue-200 text-blue-800 rounded-2xl text-xs font-bold leading-relaxed shadow-sm">
@@ -1725,7 +1725,17 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                     <div key={index} className="bg-white p-6 md:p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-gray-100 space-y-6 relative group transition-all hover:shadow-[0_8px_40px_rgb(0,0,0,0.08)]">
                       {/* Vạch kẻ màu vàng trang trí (đã thêm rounded-l-[2rem] và gỡ bỏ overflow-hidden ở thẻ cha) */}
                       <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-[#C29017] to-amber-200 opacity-80 rounded-l-[2rem]"></div>
-                      
+                      {item.original_string && (
+                        <div className="bg-amber-50/50 ring-1 ring-amber-200/80 p-4 rounded-2xl flex items-start gap-3 shadow-sm relative z-10">
+                          <div className="mt-0.5 w-6 h-6 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" /></svg>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-extrabold text-amber-700 uppercase tracking-widest mb-1">Dữ liệu gốc từ file (Đối chiếu)</div>
+                            <div className="text-sm font-bold text-amber-900 leading-snug">{item.original_string}</div>
+                          </div>
+                        </div>
+                      )}
                       {/* HÀNG 1: SKUs */}
                       <div className="flex justify-between items-start pb-4">
                         <div className="flex-1 flex items-center gap-4">
@@ -1773,7 +1783,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                       </div>
                       
                       {/* HÀNG 2: Thông số Phôi */}
-                      <div className="grid grid-cols-4 gap-6 bg-gray-50/50 p-5 rounded-2xl ring-1 ring-gray-100">
+                      <div className="grid grid-cols-5 gap-6 bg-gray-50/50 p-5 rounded-2xl ring-1 ring-gray-100">
                         <div className="col-span-2">
                           <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1.5">Loại sản phẩm (Phôi)</label>
                           <SearchableDropdown
@@ -1811,7 +1821,22 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                           </select>
                         </div>
                       </div>
-
+                      {/* Ô SỐ LƯỢNG */}
+                      <div>
+                        <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1.5">Số lượng</label>
+                        <input 
+                          type="number" 
+                          min="1" 
+                          disabled={isReadOnly} 
+                          value={item.quantity || 1} 
+                          onChange={(e) => { 
+                            const newItems = [...editForm.items]; 
+                            newItems[index] = { ...newItems[index], quantity: parseInt(e.target.value) || 1 }; 
+                            setEditForm({ ...editForm, items: newItems }); 
+                          }} 
+                          className="w-full bg-white ring-1 ring-gray-200 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 shadow-sm disabled:bg-gray-100"
+                        />
+                      </div>
                       {/* HÀNG 3: Designs (Đã sửa lỗi Hover mất Popup) */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                         {/* Mặt Trước */}

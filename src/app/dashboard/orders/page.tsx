@@ -1804,23 +1804,24 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                             {availableSizes.map((s: string) => <option key={s} value={s}>{s}</option>)}
                           </select>
                         </div>
+                        {/* Ô SỐ LƯỢNG */}
+                        <div>
+                          <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1.5">Số lượng</label>
+                          <input 
+                            type="number" 
+                            min="1" 
+                            disabled={isReadOnly} 
+                            value={item.quantity || 1} 
+                            onChange={(e) => { 
+                              const newItems = [...editForm.items]; 
+                              newItems[index] = { ...newItems[index], quantity: parseInt(e.target.value) || 1 }; 
+                              setEditForm({ ...editForm, items: newItems }); 
+                            }} 
+                            className="w-full bg-white ring-1 ring-gray-200 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 shadow-sm disabled:bg-gray-100"
+                          />
+                        </div>
                       </div>
-                      {/* Ô SỐ LƯỢNG */}
-                      <div>
-                        <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1.5">Số lượng</label>
-                        <input 
-                          type="number" 
-                          min="1" 
-                          disabled={isReadOnly} 
-                          value={item.quantity || 1} 
-                          onChange={(e) => { 
-                            const newItems = [...editForm.items]; 
-                            newItems[index] = { ...newItems[index], quantity: parseInt(e.target.value) || 1 }; 
-                            setEditForm({ ...editForm, items: newItems }); 
-                          }} 
-                          className="w-full bg-white ring-1 ring-gray-200 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 shadow-sm disabled:bg-gray-100"
-                        />
-                      </div>
+                      
                       {/* HÀNG 3: Designs (Đã sửa lỗi Hover mất Popup) */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                         {/* Mặt Trước */}

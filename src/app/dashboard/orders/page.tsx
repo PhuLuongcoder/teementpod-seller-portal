@@ -699,6 +699,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
           let name = '', line1 = '', line2 = '', city = '', region = '', zip = '', country = 'US';
           let designFront = '', designBack = '', mockup = '';
           let tracking = '';
+          let originalString = '';
 
           if (isEtsyFormat) {
             // ==========================================
@@ -733,6 +734,8 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             designFront = '';
             designBack = '';
             mockup = '';
+            const itemName = row['Item Name'] || '';
+            originalString = `Etsy: ${itemName} | ${variations}`.trim();
             
           } else {
             // ==========================================
@@ -760,6 +763,11 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             designFront = row['Print area front']?.trim() || '';
             designBack = row['Print area back']?.trim() || '';
             mockup = row['Mockup Front']?.trim() || '';
+            const fullType = row['Full Type'] || row['Full type'] || '';
+            originalString = fullType 
+              ? `Hệ thống: ${fullType}` 
+              : `Loại: ${rawType}, Màu: ${rawColor}, Size: ${rawSize}`;
+            
           }
           
           // ==========================================
@@ -775,7 +783,8 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             design_front: designFront,
             design_back: designBack,
             mockup: mockup,
-            extra_print_areas: []
+            extra_print_areas: [],
+            original_string: originalString
           };
 
           if (ordersMap.has(orderId)) {
@@ -928,6 +937,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       design_back: item.design_back || '',
       mockup: item.mockup || '',
       extra_print_areas: Array.isArray(item.extra_print_areas) ? item.extra_print_areas : [],
+      original_string: item.original_string || '',
     });
 
     let itemsArray: any[] = [];
@@ -1614,7 +1624,23 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             
             {/* Body Modal */}
             <div className="p-8 overflow-y-auto space-y-8">
-              
+              {/* === BẢNG THÔNG TIN YÊU CẦU GỐC TỪ FILE CSV === */}
+              {editForm.items?.some((i: any) => i.original_string) && (
+                <div className="p-4 bg-amber-50/60 border border-amber-200/80 text-amber-900 rounded-xl text-sm leading-relaxed shadow-sm">
+                  <div className="font-extrabold uppercase tracking-widest text-[10px] mb-2 flex items-center gap-2 text-amber-700">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    Yêu cầu gốc của khách (Từ file Import)
+                  </div>
+                  <div className="space-y-1.5">
+                    {editForm.items.map((item: any, idx: number) => item.original_string && (
+                      <div key={idx} className="flex gap-2">
+                        <span className="font-bold min-w-[65px]">Món #{idx + 1}:</span>
+                        <span className="font-medium text-amber-800">{item.original_string}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {/* Cảnh báo khóa đơn */}
               {editForm.status === 'complete' && (
                 <div className="p-4 bg-blue-50/80 ring-1 ring-blue-200 text-blue-800 rounded-2xl text-xs font-bold leading-relaxed shadow-sm">

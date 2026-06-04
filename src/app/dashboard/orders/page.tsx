@@ -1569,63 +1569,85 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       )}
 
-      {/* MODAL CHI TIẾT/CHỈNH SỬA */}
+      {/* MODAL CHI TIẾT/CHỈNH SỬA - GIAO DIỆN HIỆN ĐẠI MỚI */}
       {editingIndex !== null && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col scale-in">
-            <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-              <h3 className="font-bold text-gray-800 text-lg">{isReadOnly ? 'Chi tiết đơn hàng' : 'Chỉnh sửa đơn hàng'}</h3>
-              <button onClick={() => setEditingIndex(null)} className="text-3xl font-light hover:text-red-500">&times;</button>
+        <div className="fixed inset-0 bg-gray-900/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-all duration-300">
+          <div className="bg-slate-50 rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.2)] w-[75vw] max-w-7xl max-h-[90vh] flex flex-col scale-in overflow-hidden border border-white/20">
+            
+            {/* Header Modal */}
+            <div className="px-8 py-5 border-b border-gray-200/60 flex justify-between items-center bg-white z-10 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#C29017]/10 text-[#C29017] rounded-full flex items-center justify-center shadow-inner">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
+                </div>
+                <h3 className="font-extrabold text-gray-800 text-xl tracking-tight">
+                  {isReadOnly ? 'Chi tiết đơn hàng' : 'Cập nhật đơn hàng'}
+                </h3>
+              </div>
+              <button onClick={() => setEditingIndex(null)} className="text-gray-400 hover:text-red-500 hover:bg-red-50 w-10 h-10 rounded-full flex items-center justify-center transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
             
+            {/* Body Modal */}
             <div className="p-8 overflow-y-auto space-y-8">
               
+              {/* Cảnh báo khóa đơn */}
               {editForm.status === 'complete' && (
-                <div className="p-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-xs font-bold leading-relaxed">
-                  Đơn hàng đã được thanh toán và gửi đến Admin xưởng. Bạn vẫn có thể thay đổi thiết kế hoặc thông tin giao hàng ở đây, nhưng để đảm bảo an toàn, vui lòng liên hệ thêm bộ phận hỗ trợ xưởng để cập nhật kịp thời!
+                <div className="p-4 bg-blue-50/80 ring-1 ring-blue-200 text-blue-800 rounded-2xl text-xs font-bold leading-relaxed shadow-sm">
+                  ℹ️ Đơn hàng đã được thanh toán và gửi đến Admin xưởng. Bạn vẫn có thể thay đổi thiết kế hoặc thông tin giao hàng ở đây, nhưng để đảm bảo an toàn, vui lòng liên hệ thêm bộ phận hỗ trợ xưởng để cập nhật kịp thời!
                 </div>
               )}
               {['processing', 'in_transit', 'done', 'cancelled'].includes(editForm.status) && (
-                <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-bold">
-                  Đơn hàng đã vượt qua khâu xét duyệt / đã khóa. Tuyệt đối không thể can thiệp thay đổi thông tin hệ thống ở giai đoạn này.
+                <div className="p-4 bg-red-50/80 ring-1 ring-red-200 text-red-700 rounded-2xl text-xs font-bold shadow-sm">
+                  🛑 Đơn hàng đã vượt qua khâu xét duyệt / đã khóa. Tuyệt đối không thể can thiệp thay đổi thông tin hệ thống ở giai đoạn này.
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b pb-2">Thông tin khách hàng</h4>
-                  <div>
-                    <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Họ tên</label>
-                    <input disabled={isReadOnly} value={editForm.customer_name || ''} onChange={(e) => setEditForm({...editForm, customer_name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:border-blue-500 disabled:bg-gray-50"/>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
+              {/* KHỐI 1: THÔNG TIN KHÁCH HÀNG & GIAO HÀNG (Hiệu ứng thẻ Card nổi) */}
+              <div className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-gray-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className="space-y-5">
+                    <h4 className="text-xs font-extrabold text-gray-800 uppercase tracking-widest flex items-center gap-2 mb-4">
+                       <span className="w-2 h-2 rounded-full bg-blue-500"></span> Thông tin liên hệ
+                    </h4>
                     <div>
-                      <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Email</label>
-                      <input disabled={isReadOnly} value={editForm.customer_email || ''} onChange={(e) => setEditForm({...editForm, customer_email: e.target.value})} className="w-full border p-2.5 rounded-lg text-sm disabled:bg-gray-50"/>
+                      <label className="text-[10px] text-gray-400 font-bold uppercase ml-1 block mb-1.5">Họ và tên</label>
+                      <input disabled={isReadOnly} value={editForm.customer_name || ''} onChange={(e) => setEditForm({...editForm, customer_name: e.target.value})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-60"/>
                     </div>
-                    <div>
-                      <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">SĐT</label>
-                      <input disabled={isReadOnly} value={editForm.customer_phone || ''} onChange={(e) => setEditForm({...editForm, customer_phone: e.target.value})} className="w-full border p-2.5 rounded-lg text-sm disabled:bg-gray-50"/>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1 block mb-1.5">Email</label>
+                        <input disabled={isReadOnly} value={editForm.customer_email || ''} onChange={(e) => setEditForm({...editForm, customer_email: e.target.value})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-60"/>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-400 font-bold uppercase ml-1 block mb-1.5">Số điện thoại</label>
+                        <input disabled={isReadOnly} value={editForm.customer_phone || ''} onChange={(e) => setEditForm({...editForm, customer_phone: e.target.value})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-60"/>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b pb-2">Địa chỉ giao hàng chi tiết</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input disabled={isReadOnly} placeholder="Line 1" value={editForm.shipping_address?.line_1 || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, line_1: e.target.value}})} className="border p-2.5 rounded-lg text-sm disabled:bg-gray-50 col-span-2"/>
-                    <input disabled={isReadOnly} placeholder="Line 2" value={editForm.shipping_address?.line_2 || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, line_2: e.target.value}})} className="border p-2.5 rounded-lg text-sm disabled:bg-gray-50 col-span-2"/>
-                    <input disabled={isReadOnly} placeholder="City" value={editForm.shipping_address?.city || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, city: e.target.value}})} className="border p-2.5 rounded-lg text-sm disabled:bg-gray-50"/>
-                    <input disabled={isReadOnly} placeholder="State/Region" value={editForm.shipping_address?.region || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, region: e.target.value}})} className="border p-2.5 rounded-lg text-sm disabled:bg-gray-50"/>
-                    <input disabled={isReadOnly} placeholder="Zip Code" value={editForm.shipping_address?.zip || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, zip: e.target.value}})} className="border p-2.5 rounded-lg text-sm disabled:bg-gray-50"/>
-                    <input disabled={isReadOnly} placeholder="Country" value={editForm.shipping_address?.country || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, country: e.target.value}})} className="border p-2.5 rounded-lg text-sm disabled:bg-gray-50"/>
+                  
+                  <div className="space-y-5">
+                    <h4 className="text-xs font-extrabold text-gray-800 uppercase tracking-widest flex items-center gap-2 mb-4">
+                       <span className="w-2 h-2 rounded-full bg-green-500"></span> Địa chỉ giao hàng
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <input disabled={isReadOnly} placeholder="Địa chỉ 1 (Line 1)" value={editForm.shipping_address?.line_1 || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, line_1: e.target.value}})} className="col-span-2 w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-green-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-60"/>
+                      <input disabled={isReadOnly} placeholder="Địa chỉ 2 (Line 2)" value={editForm.shipping_address?.line_2 || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, line_2: e.target.value}})} className="col-span-2 w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-green-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-60"/>
+                      <input disabled={isReadOnly} placeholder="Thành phố (City)" value={editForm.shipping_address?.city || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, city: e.target.value}})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-green-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-60"/>
+                      <input disabled={isReadOnly} placeholder="Bang (State/Region)" value={editForm.shipping_address?.region || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, region: e.target.value}})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-green-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-60"/>
+                      <input disabled={isReadOnly} placeholder="Mã bưu điện (Zip)" value={editForm.shipping_address?.zip || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, zip: e.target.value}})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-green-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-60"/>
+                      <input disabled={isReadOnly} placeholder="Quốc gia (Country)" value={editForm.shipping_address?.country || ''} onChange={(e) => setEditForm({...editForm, shipping_address: {...editForm.shipping_address, country: e.target.value}})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-green-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-60"/>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="flex justify-between items-center border-b pb-2">
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                    Danh sách mặt hàng ({editForm.items?.length || 0})
+              {/* KHỐI 2: DANH SÁCH MẶT HÀNG */}
+              <div className="space-y-6">
+                <div className="flex justify-between items-center px-2">
+                  <h4 className="text-xs font-extrabold text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#C29017]"></span> Sản phẩm trong đơn ({editForm.items?.length || 0})
                   </h4>
                   {!isReadOnly && (
                     <button
@@ -1633,7 +1655,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         const newItem = { sku: '', type: '', color: '', size: '', quantity: 1, design_front: '', design_back: '', mockup: '', extra_print_areas: [] };
                         setEditForm({ ...editForm, items: [...(editForm.items || []), newItem] });
                       }}
-                      className="text-[10px] bg-green-50 px-3 py-1 rounded-lg text-green-600 font-bold hover:bg-green-100 transition"
+                      className="text-xs bg-white shadow-sm ring-1 ring-gray-200 px-4 py-2 rounded-xl text-gray-700 font-bold hover:shadow-md hover:text-[#C29017] hover:ring-[#C29017]/30 transition-all"
                     >
                       + Thêm sản phẩm
                     </button>
@@ -1641,31 +1663,25 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                 </div>
                 
                 {(editForm.items || []).map((item: any, index: number) => {
-                  
-                  // 1. TÌM PHÔI ĐANG ĐƯỢC CHỌN VÀ ÉP KIỂU MÀU/SIZE VỀ ĐÚNG ARRAY
                   const selectedBlank = podBlanks.find(b => b.name === item.type);
-                  
                   const parseArraySafe = (data: any) => {
                     if (Array.isArray(data)) return data;
-                    if (typeof data === 'string') {
-                      try { return JSON.parse(data) || []; } catch { return []; }
-                    }
+                    if (typeof data === 'string') { try { return JSON.parse(data) || []; } catch { return []; } }
                     return [];
                   };
-
                   const availableColors = parseArraySafe(selectedBlank?.colors);
                   const availableSizes = parseArraySafe(selectedBlank?.sizes);
 
                   return (
-                    <div key={index} className="p-5 bg-white shadow-sm rounded-xl border border-gray-200 space-y-5">
+                    <div key={index} className="bg-white p-6 md:p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-gray-100 space-y-6 relative group overflow-hidden transition-all hover:shadow-[0_8px_40px_rgb(0,0,0,0.08)]">
+                      {/* Vạch kẻ màu vàng trang trí */}
+                      <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-[#C29017] to-amber-200 opacity-80"></div>
                       
-                      {/* HÀNG 1: Tiêu đề & Tính năng Nhập SKU */}
-                      <div className="flex justify-between items-end border-b border-gray-100 pb-3">
-                        <div className="flex-1 flex items-center gap-3">
-                          <span className="text-[10px] bg-gray-900 text-white px-2.5 py-1 rounded font-bold uppercase">Món #{index + 1}</span>
-                          <div className="flex items-center gap-2 max-w-sm w-full">
-                            
-                            {/* COMPONENT COMBOBOX SKU MỚI */}
+                      {/* HÀNG 1: SKUs */}
+                      <div className="flex justify-between items-start pb-4">
+                        <div className="flex-1 flex items-center gap-4">
+                          <span className="text-[10px] bg-gray-900 text-white px-3 py-1.5 rounded-lg font-bold uppercase tracking-wider shadow-sm">Món #{index + 1}</span>
+                          <div className="w-full max-w-sm">
                             <SkuCombobox
                               disabled={isReadOnly}
                               value={item.sku || ''}
@@ -1678,7 +1694,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               onSelect={(matchedDesign) => {
                                 const newItems = [...editForm.items];
                                 const libraryExtraAreas = matchedDesign.extra_print_areas || [];
-
                                 newItems[index] = {
                                   ...newItems[index],
                                   sku: matchedDesign.sku,
@@ -1688,22 +1703,12 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                   extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : newItems[index].extra_print_areas
                                 };
                                 setEditForm({ ...editForm, items: newItems });
-
-                                // Xóa bộ nhớ cache lỗi ảnh để ảnh load lại ngay lập tức
-                                setImageError(prev => ({
-                                  ...prev, 
-                                  [`front-${index}`]: false, 
-                                  [`back-${index}`]: false, 
-                                  [`mockup-${index}`]: false
-                                }));
-
-                                notify(`Đã đồng bộ thiết kế thành công cho: ${matchedDesign.sku}`);
+                                setImageError(prev => ({...prev, [`front-${index}`]: false, [`back-${index}`]: false, [`mockup-${index}`]: false}));
+                                notify(`🎉 Đã đồng bộ thiết kế thành công cho: ${matchedDesign.sku}`);
                               }}
                             />
-
                           </div>
                         </div>
-                        
                         {!isReadOnly && (editForm.items || []).length > 1 && (
                           <button
                             type="button"
@@ -1711,19 +1716,17 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               const newItems = editForm.items.filter((_: any, i: number) => i !== index);
                               setEditForm({ ...editForm, items: newItems });
                             }}
-                            className="text-[10px] text-red-500 bg-red-50 px-2.5 py-1 rounded hover:bg-red-100 font-bold transition ml-4 shrink-0"
+                            className="text-[10px] text-red-500 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-500 hover:text-white hover:shadow-md font-bold transition-all ml-4 shrink-0"
                           >
-                            Xóa mặt hàng
+                            ✕ Xóa mặt hàng
                           </button>
                         )}
                       </div>
                       
-                      {/* HÀNG 2: Thuộc tính cơ bản (DROPDOWN MAPPING) */}
-                      <div className="grid grid-cols-4 gap-4 overflow-visible">
-                        
-                        {/* 1. DROPDOWN PHÔI (TYPE) */}
+                      {/* HÀNG 2: Thông số Phôi */}
+                      <div className="grid grid-cols-4 gap-6 bg-gray-50/50 p-5 rounded-2xl ring-1 ring-gray-100">
                         <div className="col-span-2">
-                          <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Loại sản phẩm (Phôi)</label>
+                          <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1.5">Loại sản phẩm (Phôi)</label>
                           <SearchableDropdown
                             disabled={isReadOnly}
                             value={item.type || ''}
@@ -1732,241 +1735,113 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                             onChange={(newType: string) => {
                               const newBlank = podBlanks.find(b => b.name === newType);
                               const newItems = [...editForm.items];
-                              
                               newItems[index] = { ...newItems[index], type: newType };
-                              
                               if (newBlank) {
-                                const parseArraySafe = (data: any) => {
-                                  if (Array.isArray(data)) return data;
-                                  if (typeof data === 'string') {
-                                    try { return JSON.parse(data) || []; } catch { return []; }
-                                  }
-                                  return [];
-                                };
+                                const parseArraySafe = (data: any) => { if (Array.isArray(data)) return data; if (typeof data === 'string') { try { return JSON.parse(data) || []; } catch { return []; } } return []; };
                                 const newBlankColors = parseArraySafe(newBlank.colors);
                                 const newBlankSizes = parseArraySafe(newBlank.sizes);
-                                
                                 if (!newBlankColors.includes(newItems[index].color)) newItems[index].color = '';
                                 if (!newBlankSizes.includes(newItems[index].size)) newItems[index].size = '';
                               }
-                              
                               setEditForm({ ...editForm, items: newItems });
                             }}
                           />
                         </div>
-
-                        {/* 2. DROPDOWN MÀU */}
                         <div>
-                          <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Màu sắc</label>
-                          <select 
-                            disabled={isReadOnly || !item.type} 
-                            value={item.color || ''} 
-                            onChange={(e) => {
-                              const newItems = [...editForm.items];
-                              newItems[index] = { ...newItems[index], color: e.target.value };
-                              setEditForm({ ...editForm, items: newItems });
-                            }}
-                            className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.color && item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
-                          >
-                            <option value="">Màu Áo</option>
-                            {item.color && !availableColors.includes(item.color) && (
-                              <option value={item.color} disabled>{item.color} (Đã ẩn)</option>
-                            )}
-                            {availableColors.map((c: string) => (
-                              <option key={c} value={c}>{c}</option>
-                            ))}
+                          <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1.5">Màu sắc</label>
+                          <select disabled={isReadOnly || !item.type} value={item.color || ''} onChange={(e) => { const newItems = [...editForm.items]; newItems[index] = { ...newItems[index], color: e.target.value }; setEditForm({ ...editForm, items: newItems }); }} className={`w-full bg-white ring-1 ring-gray-200 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer disabled:bg-gray-100 ${!item.color && item.type ? 'ring-red-400 bg-red-50' : ''}`}>
+                            <option value="">Chọn Màu</option>
+                            {availableColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
                           </select>
                         </div>
-
-                        {/* 3. DROPDOWN SIZE */}
                         <div>
-                          <label className="text-[10px] text-gray-400 font-bold uppercase ml-1">Kích cỡ</label>
-                          <select 
-                            disabled={isReadOnly || !item.type} 
-                            value={item.size || ''} 
-                            onChange={(e) => {
-                              const newItems = [...editForm.items];
-                              newItems[index] = { ...newItems[index], size: e.target.value };
-                              setEditForm({ ...editForm, items: newItems });
-                            }}
-                            className={`w-full border p-2 rounded-lg text-sm outline-none focus:border-blue-500 disabled:bg-gray-100 cursor-pointer ${!item.size && item.type ? 'border-red-400 bg-red-50' : 'bg-gray-50'}`}
-                          >
-                            <option value="">Size Áo</option>
-                            {item.size && !availableSizes.includes(item.size) && (
-                              <option value={item.size} disabled>{item.size} (Đã ẩn)</option>
-                            )}
-                            {availableSizes.map((s: string) => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
+                          <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1.5">Kích cỡ</label>
+                          <select disabled={isReadOnly || !item.type} value={item.size || ''} onChange={(e) => { const newItems = [...editForm.items]; newItems[index] = { ...newItems[index], size: e.target.value }; setEditForm({ ...editForm, items: newItems }); }} className={`w-full bg-white ring-1 ring-gray-200 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer disabled:bg-gray-100 ${!item.size && item.type ? 'ring-red-400 bg-red-50' : ''}`}>
+                            <option value="">Chọn Size</option>
+                            {availableSizes.map((s: string) => <option key={s} value={s}>{s}</option>)}
                           </select>
                         </div>
-                        
                       </div>
 
-                      {/* HÀNG 3: Giao diện Box Hiển thị Hình ảnh Thiết kế (Visual Designs) */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                        
-                        {/* Box Design Front */}
-                        <div className="flex gap-3 bg-blue-50/30 p-2.5 rounded-xl border border-blue-100">
-                          <div className="relative group/img shrink-0">
-                            <div className="w-24 h-24 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-blue-400">
-                              {item.design_front ? (
-                                <img
-                                  src={imageError[`front-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_front)}
-                                  alt="Front"
-                                  className="w-full h-full object-contain"
-                                  onError={() => setImageError((prev) => ({ ...prev, [`front-${index}`]: true }))}
-                                />
-                              ) : (
-                                <span className="text-[10px] text-gray-400 font-medium text-center">No Img<br/>Front</span>
-                              )}
-                            </div>
-                            
-                            {/* Popup Ảnh to */}
+                      {/* HÀNG 3: Designs */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        {/* Mặt Trước */}
+                        <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-blue-200">
+                          <div className="relative w-20 h-20 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center overflow-hidden shrink-0 group/img cursor-help">
+                            {item.design_front ? (
+                              <img src={imageError[`front-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_front)} alt="Front" className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({ ...prev, [`front-${index}`]: true }))} />
+                            ) : <span className="text-[9px] text-gray-400 font-medium text-center">No Img<br/>Front</span>}
                             {item.design_front && !imageError[`front-${index}`] && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                                <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center">
-                                  <img 
-                                    src={convertGoogleDriveUrl(item.design_front)} 
-                                    alt="Front Preview" 
-                                    className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg"
-                                  />
-                                </div>
-                                <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
+                                <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200"><img src={convertGoogleDriveUrl(item.design_front)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" /></div>
                               </div>
                             )}
                           </div>
-
-                          <div className="flex-1 flex flex-col justify-center">
-                            <label className="text-[10px] text-blue-600 font-bold uppercase mb-1">Mặt Trước</label>
-                            <input disabled={isReadOnly} placeholder="Nhập URL..." value={item.design_front || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_front: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full border border-blue-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-blue-500 disabled:bg-gray-50"/>
+                          <div className="flex-1 flex flex-col justify-center gap-1.5">
+                            <label className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Mặt Trước</label>
+                            <input disabled={isReadOnly} placeholder="Nhập Link Design..." value={item.design_front || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_front: e.target.value }; setEditForm({ ...editForm, items: n }); setImageError(prev => ({...prev, [`front-${index}`]: false})); }} className="w-full bg-gray-50 ring-1 ring-gray-200 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all"/>
                           </div>
                         </div>
 
-                        {/* Box Design Back */}
-                        <div className="flex gap-3 bg-purple-50/30 p-2.5 rounded-xl border border-purple-100">
-                          <div className="relative group/img shrink-0">
-                            <div className="w-24 h-24 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-purple-400">
-                              {item.design_back ? (
-                                <img
-                                  src={imageError[`back-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_back)}
-                                  alt="Back"
-                                  className="w-full h-full object-contain"
-                                  onError={() => setImageError((prev) => ({ ...prev, [`back-${index}`]: true }))}
-                                />
-                              ) : (
-                                <span className="text-[10px] text-gray-400 font-medium text-center">No Img<br/>Back</span>
-                              )}
-                            </div>
-
-                            {/* Popup Ảnh to */}
+                        {/* Mặt Sau */}
+                        <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-purple-200">
+                          <div className="relative w-20 h-20 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center overflow-hidden shrink-0 group/img cursor-help">
+                            {item.design_back ? (
+                              <img src={imageError[`back-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_back)} alt="Back" className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({ ...prev, [`back-${index}`]: true }))} />
+                            ) : <span className="text-[9px] text-gray-400 font-medium text-center">No Img<br/>Back</span>}
                             {item.design_back && !imageError[`back-${index}`] && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                                <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center">
-                                  <img 
-                                    src={convertGoogleDriveUrl(item.design_back)} 
-                                    alt="Back Preview" 
-                                    className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg"
-                                  />
-                                </div>
-                                <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
+                                <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200"><img src={convertGoogleDriveUrl(item.design_back)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" /></div>
                               </div>
                             )}
                           </div>
-
-                          <div className="flex-1 flex flex-col justify-center">
-                            <label className="text-[10px] text-purple-600 font-bold uppercase mb-1">Mặt Sau</label>
-                            <input disabled={isReadOnly} placeholder="Nhập URL..." value={item.design_back || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_back: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full border border-purple-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-purple-500 disabled:bg-gray-50"/>
+                          <div className="flex-1 flex flex-col justify-center gap-1.5">
+                            <label className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Mặt Sau</label>
+                            <input disabled={isReadOnly} placeholder="Nhập Link Design..." value={item.design_back || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_back: e.target.value }; setEditForm({ ...editForm, items: n }); setImageError(prev => ({...prev, [`back-${index}`]: false})); }} className="w-full bg-gray-50 ring-1 ring-gray-200 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-purple-400 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all"/>
                           </div>
                         </div>
 
-                        {/* Box Mockup */}
-                        <div className="flex gap-3 bg-teal-50/30 p-2.5 rounded-xl border border-teal-100">
-                          <div className="relative group/img shrink-0">
-                            <div className="w-24 h-24 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-teal-400">
-                              {item.mockup ? (
-                                <img
-                                  src={imageError[`mockup-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.mockup)}
-                                  alt="Mockup"
-                                  className="w-full h-full object-contain"
-                                  onError={() => setImageError((prev) => ({ ...prev, [`mockup-${index}`]: true }))}
-                                />
-                              ) : (
-                                <span className="text-[10px] text-gray-400 font-medium text-center">No Img<br/>Mockup</span>
-                              )}
-                            </div>
-
-                            {/* Popup Ảnh to */}
+                        {/* Mockup */}
+                        <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-teal-200">
+                          <div className="relative w-20 h-20 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center overflow-hidden shrink-0 group/img cursor-help">
+                            {item.mockup ? (
+                              <img src={imageError[`mockup-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.mockup)} alt="Mockup" className="w-full h-full object-cover" onError={() => setImageError(prev => ({ ...prev, [`mockup-${index}`]: true }))} />
+                            ) : <span className="text-[9px] text-gray-400 font-medium text-center">No Img<br/>Mockup</span>}
                             {item.mockup && !imageError[`mockup-${index}`] && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                                <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center">
-                                  <img 
-                                    src={convertGoogleDriveUrl(item.mockup)} 
-                                    alt="Mockup Preview" 
-                                    className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg"
-                                  />
-                                </div>
-                                <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
+                                <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200"><img src={convertGoogleDriveUrl(item.mockup)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" /></div>
                               </div>
                             )}
                           </div>
-
-                          <div className="flex-1 flex flex-col justify-center">
-                            <label className="text-[10px] text-teal-600 font-bold uppercase mb-1">Mockup SP</label>
-                            <input disabled={isReadOnly} placeholder="Nhập URL..." value={item.mockup || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], mockup: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full border border-teal-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-teal-500 disabled:bg-gray-50"/>
+                          <div className="flex-1 flex flex-col justify-center gap-1.5">
+                            <label className="text-[10px] text-teal-600 font-bold uppercase tracking-wider">Mockup SP</label>
+                            <input disabled={isReadOnly} placeholder="Nhập Link Mockup..." value={item.mockup || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], mockup: e.target.value }; setEditForm({ ...editForm, items: n }); setImageError(prev => ({...prev, [`mockup-${index}`]: false})); }} className="w-full bg-gray-50 ring-1 ring-gray-200 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-teal-400 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all"/>
                           </div>
                         </div>
                       </div>
 
-                      {/* HÀNG 4: CÁC VÙNG IN TÙY CHỌN (EXTRA PRINT AREAS) - NÂNG CẤP */}
-                      <div className="pt-4 mt-4 border-t border-gray-100">
+                      {/* HÀNG 4: Extra Print Areas */}
+                      <div className="pt-2">
                         <div className="flex justify-between items-center mb-3">
-                          <label className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Các vùng in tùy chọn (Tay áo, Cổ áo, Nhãn...)</label>
+                          <label className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Các vùng in tùy chọn (Tay áo, Cổ, Nhãn...)</label>
                           {!isReadOnly && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newItems = [...editForm.items];
-                                const currentAreas = Array.isArray(newItems[index].extra_print_areas) ? newItems[index].extra_print_areas : [];
-                                newItems[index] = { ...newItems[index], extra_print_areas: [...currentAreas, { name: '', url: '' }] };
-                                setEditForm({ ...editForm, items: newItems });
-                              }}
-                              className="text-[10px] bg-gray-100 px-3 py-1.5 rounded-lg text-gray-700 font-bold hover:bg-gray-200 transition"
-                            >
+                            <button type="button" onClick={() => { const newItems = [...editForm.items]; const currentAreas = Array.isArray(newItems[index].extra_print_areas) ? newItems[index].extra_print_areas : []; newItems[index] = { ...newItems[index], extra_print_areas: [...currentAreas, { name: '', url: '' }] }; setEditForm({ ...editForm, items: newItems }); }} className="text-[10px] bg-gray-100 px-3 py-1.5 rounded-lg text-gray-600 font-bold hover:bg-gray-200 transition">
                               + Thêm vùng in
                             </button>
                           )}
                         </div>
-
                         {Array.isArray(item.extra_print_areas) && item.extra_print_areas.length > 0 && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {item.extra_print_areas.map((area: any, aIdx: number) => (
-                              <div key={aIdx} className="flex gap-3 bg-gray-50/70 p-2.5 rounded-xl border border-gray-200 relative group/extra">
-                                
-                                <div className="relative group/img shrink-0">
-                                  <div className="w-16 h-16 bg-gray-800 rounded-lg border border-gray-700 flex items-center justify-center overflow-hidden shadow-sm cursor-help transition-all group-hover/img:border-gray-400">
-                                    {area.url ? (
-                                      <img src={imageError[`extra-${index}-${aIdx}`] ? '/no-image.png' : convertGoogleDriveUrl(area.url)} className="w-full h-full object-contain" onError={() => setImageError(prev => ({...prev, [`extra-${index}-${aIdx}`]: true}))} />
-                                    ) : (
-                                      <span className="text-[8px] text-gray-400 font-medium text-center">No Img</span>
-                                    )}
-                                  </div>
-                                  {area.url && !imageError[`extra-${index}-${aIdx}`] && (
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                                      <div className="bg-gray-800 p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-600 flex items-center justify-center"><img src={convertGoogleDriveUrl(area.url)} className="w-auto h-auto max-w-[200px] max-h-[200px] md:max-w-[260px] md:max-h-[260px] lg:max-w-[300px] lg:max-h-[300px] object-contain rounded-lg" /></div>
-                                      <div className="w-4 h-4 bg-gray-800 border-b border-r border-gray-600 rotate-45 absolute -bottom-2 left-1/2 -translate-x-1/2"></div>
-                                    </div>
-                                  )}
+                              <div key={aIdx} className="flex gap-3 bg-gray-50/80 p-3 rounded-2xl ring-1 ring-gray-100 relative group/extra transition-all hover:bg-white hover:shadow-md">
+                                <div className="relative w-12 h-12 bg-white rounded-lg shadow-sm flex items-center justify-center shrink-0">
+                                  {area.url ? <img src={imageError[`extra-${index}-${aIdx}`] ? '/no-image.png' : convertGoogleDriveUrl(area.url)} className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({...prev, [`extra-${index}-${aIdx}`]: true}))} /> : <span className="text-[8px] text-gray-300">No Img</span>}
                                 </div>
-
                                 <div className="flex-1 flex flex-col justify-center gap-1.5">
-                                  <input disabled={isReadOnly} placeholder="Tên (VD: Left Sleeve)" value={area.name || ''} onChange={(e) => { const n = [...editForm.items]; n[index].extra_print_areas[aIdx].name = e.target.value; setEditForm({ ...editForm, items: n }); }} className="w-full border border-gray-200 p-1.5 rounded-md text-[11px] font-bold text-gray-800 bg-white outline-none focus:border-gray-500 disabled:bg-gray-50" />
-                                  <input disabled={isReadOnly} placeholder="Link Design URL..." value={area.url || ''} onChange={(e) => { const n = [...editForm.items]; n[index].extra_print_areas[aIdx].url = e.target.value; setEditForm({ ...editForm, items: n }); }} className="w-full border border-gray-200 p-1.5 rounded-md text-[11px] text-gray-700 bg-white outline-none focus:border-gray-500 disabled:bg-gray-50" />
+                                  <input disabled={isReadOnly} placeholder="Tên (VD: Left Sleeve)" value={area.name || ''} onChange={(e) => { const n = [...editForm.items]; n[index].extra_print_areas[aIdx].name = e.target.value; setEditForm({ ...editForm, items: n }); }} className="w-full bg-white ring-1 ring-gray-200 p-1.5 rounded-md text-[10px] font-bold text-gray-800 outline-none focus:ring-1 focus:ring-gray-400" />
+                                  <input disabled={isReadOnly} placeholder="Link Design URL..." value={area.url || ''} onChange={(e) => { const n = [...editForm.items]; n[index].extra_print_areas[aIdx].url = e.target.value; setEditForm({ ...editForm, items: n }); }} className="w-full bg-white ring-1 ring-gray-200 p-1.5 rounded-md text-[10px] text-gray-700 outline-none focus:ring-1 focus:ring-gray-400" />
                                 </div>
-
-                                {!isReadOnly && (
-                                  <button type="button" onClick={() => { const n = [...editForm.items]; n[index].extra_print_areas = n[index].extra_print_areas.filter((_: any, i: number) => i !== aIdx); setEditForm({ ...editForm, items: n }); }} className="absolute -top-2 -right-2 bg-red-100 text-red-500 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold hover:bg-red-500 hover:text-white transition opacity-0 group-hover/extra:opacity-100 shadow-sm">✕</button>
-                                )}
+                                {!isReadOnly && <button type="button" onClick={() => { const n = [...editForm.items]; n[index].extra_print_areas = n[index].extra_print_areas.filter((_: any, i: number) => i !== aIdx); setEditForm({ ...editForm, items: n }); }} className="absolute -top-2 -right-2 bg-red-100 text-red-500 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold hover:bg-red-500 hover:text-white transition opacity-0 group-hover/extra:opacity-100 shadow-sm">✕</button>}
                               </div>
                             ))}
                           </div>
@@ -1976,33 +1851,28 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   );
                 })}
               </div>
-              <div className="pt-2">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center border-b pb-2">
-                    <h4 className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">Mock-ups đơn hàng (Chung)</h4>
-                    {!isReadOnly && <button onClick={() => setMockupsForm([...mockupsForm, {name: '', url: ''}])} className="text-[10px] bg-teal-50 px-3 py-1 rounded-lg text-teal-600 font-bold hover:bg-teal-100">+ Thêm</button>}
-                  </div>
-                  {mockupsForm.map((m, i) => (
-                    <div key={i} className="flex gap-1 items-center">
-                      <input disabled={isReadOnly} placeholder="Tên" value={m.name || ''} onChange={(e) => { const n = [...mockupsForm]; n[i].name = e.target.value; setMockupsForm(n); }} className="w-1/3 border p-1.5 rounded text-xs disabled:bg-gray-50"/>
-                      <input disabled={isReadOnly} placeholder="Link URL" value={m.url || ''} onChange={(e) => { const n = [...mockupsForm]; n[i].url = e.target.value; setMockupsForm(n); }} className="flex-1 border p-1.5 rounded text-xs text-blue-500 disabled:bg-gray-50"/>
-                      {!isReadOnly && (
-                        <button onClick={() => setMockupsForm(mockupsForm.filter((_, mi) => mi !== i))} className="text-red-400 hover:text-red-600 text-xs font-bold px-1">✕</button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+
+              {/* KHỐI 3: GHI CHÚ */}
+              <div className="bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-gray-100">
+                <label className="text-[10px] font-extrabold text-gray-800 uppercase tracking-widest flex items-center gap-2 mb-3">
+                  <span className="w-2 h-2 rounded-full bg-gray-400"></span> Ghi chú đơn hàng
+                </label>
+                <textarea disabled={isReadOnly} placeholder="Thêm ghi chú đặc biệt cho xưởng..." value={editForm.order_note || ''} onChange={(e) => setEditForm({...editForm, order_note: e.target.value})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-4 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all h-24 disabled:opacity-60 resize-none"/>
               </div>
 
-              <div className="pt-4">
-                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Ghi chú</label>
-                <textarea disabled={isReadOnly} value={editForm.order_note || ''} onChange={(e) => setEditForm({...editForm, order_note: e.target.value})} className="w-full border p-2.5 rounded-lg mt-1 outline-none focus:border-blue-500 h-20 disabled:bg-gray-50"/>
-              </div>
             </div>
 
-            <div className="p-6 bg-gray-50 border-t flex justify-end gap-3 sticky bottom-0">
-              <button onClick={() => setEditingIndex(null)} className="px-8 py-2.5 font-bold text-gray-400 hover:text-gray-600 transition">{isReadOnly ? 'Đóng' : 'Hủy'}</button>
-              {!isReadOnly && <button onClick={handleSaveEdit} className="bg-[#C29017] text-white px-12 py-2.5 rounded-xl font-bold shadow-lg hover:bg-[#a67b13] transition-all active:scale-95">Lưu thay đổi</button>}
+            {/* Footer Modal */}
+            <div className="px-8 py-5 bg-white border-t border-gray-100 flex justify-end gap-4 z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+              <button onClick={() => setEditingIndex(null)} className="px-8 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-2xl transition-colors">
+                {isReadOnly ? 'Đóng' : 'Hủy bỏ'}
+              </button>
+              {!isReadOnly && (
+                <button onClick={handleSaveEdit} className="bg-[#C29017] text-white px-10 py-3 rounded-2xl font-bold shadow-[0_8px_20px_-6px_rgba(194,144,23,0.5)] hover:bg-[#a67b13] hover:shadow-[0_10px_25px_-6px_rgba(194,144,23,0.6)] hover:-translate-y-0.5 transition-all active:scale-95 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                  Lưu thay đổi
+                </button>
+              )}
             </div>
           </div>
         </div>

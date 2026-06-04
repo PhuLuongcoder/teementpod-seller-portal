@@ -1571,19 +1571,42 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
       {/* MODAL CHI TIẾT/CHỈNH SỬA - GIAO DIỆN HIỆN ĐẠI MỚI */}
       {editingIndex !== null && (
-        <div className="fixed inset-0 bg-gray-900/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-all duration-300">
+        <div className="fixed inset-0 bg-gray-900/50 z-[999] flex items-center justify-center p-4 backdrop-blur-sm transition-all duration-300">
           <div className="bg-slate-50 rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.2)] w-[75vw] max-w-7xl max-h-[90vh] flex flex-col scale-in overflow-hidden border border-white/20">
             
             {/* Header Modal */}
-            <div className="px-8 py-5 border-b border-gray-200/60 flex justify-between items-center bg-white z-10 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#C29017]/10 text-[#C29017] rounded-full flex items-center justify-center shadow-inner">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
+            <div className="px-8 py-4 border-b border-gray-200/60 flex justify-between items-center bg-white z-10 shadow-sm rounded-t-[2rem]">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#C29017]/10 text-[#C29017] rounded-2xl flex items-center justify-center shadow-inner shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
                 </div>
-                <h3 className="font-extrabold text-gray-800 text-xl tracking-tight">
-                  {isReadOnly ? 'Chi tiết đơn hàng' : 'Cập nhật đơn hàng'}
-                </h3>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-extrabold text-gray-800 text-xl tracking-tight leading-none">
+                      {isReadOnly ? 'Chi tiết đơn hàng' : 'Cập nhật đơn hàng'}
+                    </h3>
+                    
+                    {/* Badge Trạng thái đơn hàng */}
+                    {(() => {
+                      switch(editForm.status) {
+                        case 'pending': return <span className="bg-amber-50 text-amber-600 px-2.5 py-0.5 rounded-full text-[11px] font-bold ring-1 ring-amber-200/60 shadow-sm">Chờ thanh toán</span>;
+                        case 'complete': return <span className="bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded-full text-[11px] font-bold ring-1 ring-blue-200/60 shadow-sm">Đã thanh toán</span>;
+                        case 'processing': return <span className="bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full text-[11px] font-bold ring-1 ring-indigo-200/60 shadow-sm">Đang sản xuất</span>;
+                        case 'in_transit': return <span className="bg-teal-50 text-teal-600 px-2.5 py-0.5 rounded-full text-[11px] font-bold ring-1 ring-teal-200/60 shadow-sm">Đang giao hàng</span>;
+                        case 'done': return <span className="bg-green-50 text-green-600 px-2.5 py-0.5 rounded-full text-[11px] font-bold ring-1 ring-green-200/60 shadow-sm">Hoàn thành</span>;
+                        case 'cancelled': return <span className="bg-red-50 text-red-600 px-2.5 py-0.5 rounded-full text-[11px] font-bold ring-1 ring-red-200/60 shadow-sm">Đã hủy</span>;
+                        default: return <span className="bg-gray-50 text-gray-600 px-2.5 py-0.5 rounded-full text-[11px] font-bold ring-1 ring-gray-200/60 shadow-sm">{editForm.status}</span>;
+                      }
+                    })()}
+                  </div>
+                  
+                  {/* Hiển thị Mã đơn hàng */}
+                  <div className="text-xs text-gray-500 font-semibold flex items-center gap-1.5">
+                    Mã hệ thống: <span className="text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded font-mono">{editForm.external_order_id || 'Chưa lưu'}</span>
+                  </div>
+                </div>
               </div>
+              
               <button onClick={() => setEditingIndex(null)} className="text-gray-400 hover:text-red-500 hover:bg-red-50 w-10 h-10 rounded-full flex items-center justify-center transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
@@ -1595,12 +1618,12 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               {/* Cảnh báo khóa đơn */}
               {editForm.status === 'complete' && (
                 <div className="p-4 bg-blue-50/80 ring-1 ring-blue-200 text-blue-800 rounded-2xl text-xs font-bold leading-relaxed shadow-sm">
-                  ℹ️ Đơn hàng đã được thanh toán và gửi đến Admin xưởng. Bạn vẫn có thể thay đổi thiết kế hoặc thông tin giao hàng ở đây, nhưng để đảm bảo an toàn, vui lòng liên hệ thêm bộ phận hỗ trợ xưởng để cập nhật kịp thời!
+                  Đơn hàng đã được thanh toán và gửi đến Admin xưởng. Bạn vẫn có thể thay đổi thiết kế hoặc thông tin giao hàng ở đây, nhưng để đảm bảo an toàn, vui lòng liên hệ thêm bộ phận hỗ trợ xưởng để cập nhật kịp thời!
                 </div>
               )}
               {['processing', 'in_transit', 'done', 'cancelled'].includes(editForm.status) && (
                 <div className="p-4 bg-red-50/80 ring-1 ring-red-200 text-red-700 rounded-2xl text-xs font-bold shadow-sm">
-                  🛑 Đơn hàng đã vượt qua khâu xét duyệt / đã khóa. Tuyệt đối không thể can thiệp thay đổi thông tin hệ thống ở giai đoạn này.
+                  Đơn hàng đã vượt qua khâu xét duyệt / đã khóa. Tuyệt đối không thể can thiệp thay đổi thông tin hệ thống ở giai đoạn này.
                 </div>
               )}
 
@@ -1673,9 +1696,9 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   const availableSizes = parseArraySafe(selectedBlank?.sizes);
 
                   return (
-                    <div key={index} className="bg-white p-6 md:p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-gray-100 space-y-6 relative group overflow-hidden transition-all hover:shadow-[0_8px_40px_rgb(0,0,0,0.08)]">
-                      {/* Vạch kẻ màu vàng trang trí */}
-                      <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-[#C29017] to-amber-200 opacity-80"></div>
+                    <div key={index} className="bg-white p-6 md:p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-gray-100 space-y-6 relative group transition-all hover:shadow-[0_8px_40px_rgb(0,0,0,0.08)]">
+                      {/* Vạch kẻ màu vàng trang trí (đã thêm rounded-l-[2rem] và gỡ bỏ overflow-hidden ở thẻ cha) */}
+                      <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-[#C29017] to-amber-200 opacity-80 rounded-l-[2rem]"></div>
                       
                       {/* HÀNG 1: SKUs */}
                       <div className="flex justify-between items-start pb-4">
@@ -1763,17 +1786,23 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         </div>
                       </div>
 
-                      {/* HÀNG 3: Designs */}
+                      {/* HÀNG 3: Designs (Đã sửa lỗi Hover mất Popup) */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                         {/* Mặt Trước */}
                         <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-blue-200">
-                          <div className="relative w-20 h-20 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center overflow-hidden shrink-0 group/img cursor-help">
-                            {item.design_front ? (
-                              <img src={imageError[`front-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_front)} alt="Front" className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({ ...prev, [`front-${index}`]: true }))} />
-                            ) : <span className="text-[9px] text-gray-400 font-medium text-center">No Img<br/>Front</span>}
+                          <div className="relative group/img shrink-0">
+                            {/* Khung chứa ảnh bị cắt viền (overflow-hidden) */}
+                            <div className="w-20 h-20 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help">
+                              {item.design_front ? (
+                                <img src={imageError[`front-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_front)} alt="Front" className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({ ...prev, [`front-${index}`]: true }))} />
+                              ) : <span className="text-[9px] text-gray-400 font-medium text-center">No Img<br/>Front</span>}
+                            </div>
+                            {/* Popup nẩy ra NẰM NGOÀI khung bị cắt */}
                             {item.design_front && !imageError[`front-${index}`] && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                                <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200"><img src={convertGoogleDriveUrl(item.design_front)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" /></div>
+                                <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
+                                  <img src={convertGoogleDriveUrl(item.design_front)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" />
+                                </div>
                               </div>
                             )}
                           </div>
@@ -1785,13 +1814,17 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
                         {/* Mặt Sau */}
                         <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-purple-200">
-                          <div className="relative w-20 h-20 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center overflow-hidden shrink-0 group/img cursor-help">
-                            {item.design_back ? (
-                              <img src={imageError[`back-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_back)} alt="Back" className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({ ...prev, [`back-${index}`]: true }))} />
-                            ) : <span className="text-[9px] text-gray-400 font-medium text-center">No Img<br/>Back</span>}
+                          <div className="relative group/img shrink-0">
+                            <div className="w-20 h-20 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help">
+                              {item.design_back ? (
+                                <img src={imageError[`back-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_back)} alt="Back" className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({ ...prev, [`back-${index}`]: true }))} />
+                              ) : <span className="text-[9px] text-gray-400 font-medium text-center">No Img<br/>Back</span>}
+                            </div>
                             {item.design_back && !imageError[`back-${index}`] && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                                <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200"><img src={convertGoogleDriveUrl(item.design_back)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" /></div>
+                                <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
+                                  <img src={convertGoogleDriveUrl(item.design_back)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" />
+                                </div>
                               </div>
                             )}
                           </div>
@@ -1803,13 +1836,17 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
                         {/* Mockup */}
                         <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-teal-200">
-                          <div className="relative w-20 h-20 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center overflow-hidden shrink-0 group/img cursor-help">
-                            {item.mockup ? (
-                              <img src={imageError[`mockup-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.mockup)} alt="Mockup" className="w-full h-full object-cover" onError={() => setImageError(prev => ({ ...prev, [`mockup-${index}`]: true }))} />
-                            ) : <span className="text-[9px] text-gray-400 font-medium text-center">No Img<br/>Mockup</span>}
+                          <div className="relative group/img shrink-0">
+                            <div className="w-20 h-20 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help">
+                              {item.mockup ? (
+                                <img src={imageError[`mockup-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.mockup)} alt="Mockup" className="w-full h-full object-cover" onError={() => setImageError(prev => ({ ...prev, [`mockup-${index}`]: true }))} />
+                              ) : <span className="text-[9px] text-gray-400 font-medium text-center">No Img<br/>Mockup</span>}
+                            </div>
                             {item.mockup && !imageError[`mockup-${index}`] && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                                <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200"><img src={convertGoogleDriveUrl(item.mockup)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" /></div>
+                                <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
+                                  <img src={convertGoogleDriveUrl(item.mockup)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" />
+                                </div>
                               </div>
                             )}
                           </div>
@@ -1834,8 +1871,17 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {item.extra_print_areas.map((area: any, aIdx: number) => (
                               <div key={aIdx} className="flex gap-3 bg-gray-50/80 p-3 rounded-2xl ring-1 ring-gray-100 relative group/extra transition-all hover:bg-white hover:shadow-md">
-                                <div className="relative w-12 h-12 bg-white rounded-lg shadow-sm flex items-center justify-center shrink-0">
-                                  {area.url ? <img src={imageError[`extra-${index}-${aIdx}`] ? '/no-image.png' : convertGoogleDriveUrl(area.url)} className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({...prev, [`extra-${index}-${aIdx}`]: true}))} /> : <span className="text-[8px] text-gray-300">No Img</span>}
+                                <div className="relative group/img shrink-0">
+                                  <div className="w-12 h-12 bg-white rounded-lg shadow-sm flex items-center justify-center overflow-hidden cursor-help">
+                                    {area.url ? <img src={imageError[`extra-${index}-${aIdx}`] ? '/no-image.png' : convertGoogleDriveUrl(area.url)} className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({...prev, [`extra-${index}-${aIdx}`]: true}))} /> : <span className="text-[8px] text-gray-300">No Img</span>}
+                                  </div>
+                                  {area.url && !imageError[`extra-${index}-${aIdx}`] && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                      <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
+                                        <img src={convertGoogleDriveUrl(area.url)} className="w-auto h-auto max-w-[200px] object-contain rounded-lg" />
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="flex-1 flex flex-col justify-center gap-1.5">
                                   <input disabled={isReadOnly} placeholder="Tên (VD: Left Sleeve)" value={area.name || ''} onChange={(e) => { const n = [...editForm.items]; n[index].extra_print_areas[aIdx].name = e.target.value; setEditForm({ ...editForm, items: n }); }} className="w-full bg-white ring-1 ring-gray-200 p-1.5 rounded-md text-[10px] font-bold text-gray-800 outline-none focus:ring-1 focus:ring-gray-400" />

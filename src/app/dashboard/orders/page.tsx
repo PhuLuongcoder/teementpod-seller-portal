@@ -734,8 +734,18 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             designFront = '';
             designBack = '';
             mockup = '';
-            const itemName = row['Item Name'] || '';
-            originalString = `Etsy: ${itemName} | ${variations}`.trim();
+            let itemName = row['Item Name'] || '';
+            itemName = itemName.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+            
+            // 2. Cắt ngắn tên sản phẩm (Chỉ lấy phần đầu tiên trước dấu phẩy)
+            // Ví dụ: "Áo thun A, Áo thun B, Áo thun C" -> Chỉ lấy "Áo thun A"
+            const shortItemName = itemName.split(',')[0].trim();
+            
+            // 3. Dịch ngược cả ký tự trong Variations (nếu có)
+            let cleanVariations = variations.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+
+            // 4. Lưu lại chuỗi đã được làm sạch và thu gọn
+            originalString = `Etsy: ${shortItemName} | ${cleanVariations}`.trim();
             
           } else {
             // ==========================================

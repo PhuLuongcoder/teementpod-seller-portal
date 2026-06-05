@@ -120,8 +120,8 @@ export default function SellerDashboardPage() {
 
         {/* THẺ MỚI: CHIẾT KHẤU ƯU ĐÃI TỪ ADMIN */}
         <KPICard 
-          title="Ưu Đãi Đặc Quyền" 
-          value={stats.special_discount || "0%"} 
+          title="Mức Chiết Khấu" 
+          value={stats.special_discount || "$0"} 
           subValue={stats.discount_note || "Hạng thành viên tiêu chuẩn"} 
           trend="up" 
           icon={(props: any) => (

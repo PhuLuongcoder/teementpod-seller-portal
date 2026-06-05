@@ -50,9 +50,30 @@ export default function TopbarTotalSpend() {
         {isLoading ? (
           <div className="h-4 w-16 bg-[#C29017]/20 animate-pulse rounded"></div>
         ) : (
-          <span className="text-sm font-black text-gray-900 leading-none">
-            ${totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
+          (() => {
+            const amount = totalSpent || 0;
+            const formattedAmount = Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            
+            if (amount > 0) {
+              return (
+                <span className="text-sm font-black text-red-500 leading-none">
+                  -${formattedAmount}
+                </span>
+              );
+            } else if (amount < 0) {
+              return (
+                <span className="text-sm font-black text-green-600 leading-none">
+                  +${formattedAmount}
+                </span>
+              );
+            } else {
+              return (
+                <span className="text-sm font-black text-gray-500 leading-none">
+                  $0.00
+                </span>
+              );
+            }
+          })()
         )}
       </div>
     </div>

@@ -1213,7 +1213,8 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               } else if (order.status === 'pending') {
                 statusLabel = 'Chờ thanh toán';
               }
-
+              const isFullyMapped = order.items && order.items.length > 0 && order.items.every((item: any) => item.type && item.color && item.size);
+              const displayPrice = isFullyMapped ? (order.order_price || 0) : 0;
               return (
                 <tr key={idx} className={`border-b border-gray-100 transition duration-200 group ${isChecked ? 'bg-[#C29017]/10' : 'hover:bg-gray-50 bg-white'}`}>
                   
@@ -1329,7 +1330,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                       ))}
                     </div>
                   </td>
-                  <td className="p-4 font-bold text-gray-900">${order.order_price}</td>
+                  <td className="p-4 font-bold text-gray-900">${displayPrice}</td>
                 </tr>
               );
             })}

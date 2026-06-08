@@ -241,7 +241,21 @@ export default function OrdersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-
+  //Nhận diện màu
+  const getStandardColor = (colorName?: string) => {
+    if (!colorName) return '#f9fafb'; // Mặc định là màu xám nhạt (gray-50)
+    const name = colorName.toLowerCase().trim();
+    const colorMap: Record<string, string> = {
+      'sport grey': '#d1d5db', 'dark heather': '#374151', 'heather navy': '#312e81',
+      'light pink': '#fbcfe8', 'light blue': '#bfdbfe', 'navy': '#1e3a8a',
+      'royal': '#1d4ed8', 'maroon': '#7f1d1d', 'forest green': '#064e3b',
+      'charcoal': '#3f3f46', 'sand': '#e5e5cb', 'ash': '#e2e8f0',
+      'irish green': '#16a34a', 'carolina blue': '#7dd3fc', 'heliconia': '#d946ef',
+      'sapphire': '#0284c7', 'kelly green': '#22c55e', 'daisy': '#fde047'
+    };
+    // Nếu có trong từ điển thì lấy mã Hex, nếu không thì trả về tên gốc (CSS tự hiểu các màu chuẩn như 'black', 'red', 'pink')
+    return colorMap[name] || colorName;
+  };
   // Import tab pagination
   const [importCurrentPage, setImportCurrentPage] = useState(1);
   const IMPORT_PAGE_SIZE = 20;
@@ -719,6 +733,29 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
             // Tách Size và Color từ cột Variations ("SIZE:Blouse-L,Color:Yellow")
             const variations = row['Variations'] || '';
+            
+            // Tách các cụm thuộc tính bằng dấu phẩy
+            const varParts = variations.split(',');
+            
+            // Quét qua từng cụm để dò tìm Color và Size (Loại bỏ luôn dấu ngoặc kép thừa)
+            varParts.forEach((part: string) => {
+              const cleanPart = part.replace(/"/g, '').trim();
+              
+              if (cleanPart.toLowerCase().includes('size')) {
+                // Tách theo dấu hai chấm (:), lấy phần sau, xóa khoảng trắng thừa
+                rawSize = cleanPart.split(':')[1]?.trim() || rawSize;
+                
+                // (Tùy chọn) Etsy thường ghi "Blouse-L" hoặc "T-shirt-XL", có thể cắt bỏ để chỉ lấy chữ L, XL
+                if (rawSize.includes('-')) {
+                  const subParts = rawSize.split('-');
+                  rawSize = subParts[subParts.length - 1]?.trim() || rawSize;
+                }
+              }
+              
+              if (cleanPart.toLowerCase().includes('color')) {
+                rawColor = cleanPart.split(':')[1]?.trim() || rawColor;
+              }
+            });
             // Regex bắt chữ SIZE: hoặc Size:
             const sizeMatch = variations.match(/SIZE:\s*([^,]+)/i) || variations.match(/Size:\s*([^,]+)/i);
             // Regex bắt chữ Color:
@@ -998,17 +1035,85 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
   const handleSaveEdit = async () => {
     if (editingIndex === null) return;
 
+    const items = editForm.items || [];
+
+    // ==========================================
+    // MỚI: CHỐT CHẶN KIỂM TRA PHÔI, MÀU, SIZE & STOCK TRƯỚC KHI LƯU
+    // ==========================================
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      
+      // 1. Kiểm tra đã chọn Type chưa
+      if (!it.type) {
+        alert(`Sản phẩm #${i + 1}: Vui lòng chọn Loại sản phẩm (Phôi)!`);
+        return;
+      }
+
+      // 2. Tìm phôi tương ứng trong hệ thống
+      const blank = podBlanks.find(b => b.name === it.type);
+      if (!blank) {
+        alert(`Sản phẩm #${i + 1}: Phôi "${it.type}" không tồn tại trên hệ thống.`);
+        return;
+      }
+
+      const parseArraySafe = (data: any) => { 
+        if (Array.isArray(data)) return data; 
+        if (typeof data === 'string') { try { return JSON.parse(data) || []; } catch { return []; } } 
+        return []; 
+      };
+      
+      const validColors = parseArraySafe(blank.colors);
+      const validSizes = parseArraySafe(blank.sizes);
+
+      // 3. Kiểm tra Màu sắc có khớp với phôi không (Không phân biệt hoa/thường)
+      const isColorValid = validColors.some((c: string) => c.toLowerCase() === (it.color || '').trim().toLowerCase());
+      if (!isColorValid) {
+        alert(`Sản phẩm #${i + 1}: Màu "${it.color || 'Trống'}" không được hỗ trợ cho phôi "${it.type}". Vui lòng chọn màu khác!`);
+        return;
+      }
+
+      // 4. Kiểm tra Kích cỡ có khớp với phôi không
+      const isSizeValid = validSizes.some((s: string) => s.toLowerCase() === (it.size || '').trim().toLowerCase());
+      if (!isSizeValid) {
+        alert(`Sản phẩm #${i + 1}: Size "${it.size || 'Trống'}" không được hỗ trợ cho phôi "${it.type}". Vui lòng chọn size khác!`);
+        return;
+      }
+
+      // 5. Kiểm tra Tình trạng Hết hàng (Stock)
+      if (blank.in_stock === false) {
+        alert(`Sản phẩm #${i + 1}: Phôi "${it.type}" hiện đang HẾT HÀNG toàn bộ. Không thể lên đơn!`);
+        return;
+      }
+
+      // 6. Kiểm tra Hết hàng theo từng biến thể (Nếu hệ thống có khai báo)
+      const oosVariants = parseArraySafe(blank.out_of_stock_variants); 
+      if (oosVariants.length > 0) {
+        const isVariantOos = oosVariants.some((v: any) => 
+          (v.color || '').toLowerCase() === (it.color || '').trim().toLowerCase() && 
+          (v.size || '').toLowerCase() === (it.size || '').trim().toLowerCase()
+        );
+        if (isVariantOos) {
+          alert(`Sản phẩm #${i + 1}: Tổ hợp Phôi "${it.type}" - Màu "${it.color}" - Size "${it.size}" hiện đang HẾT HÀNG!`);
+          return;
+        }
+      }
+
+      // Tự động chuẩn hóa lại chữ Hoa/Thường cho chuẩn xác trước khi đưa vào Database
+      it.color = validColors.find((c: string) => c.toLowerCase() === (it.color || '').trim().toLowerCase()) || it.color;
+      it.size = validSizes.find((s: string) => s.toLowerCase() === (it.size || '').trim().toLowerCase()) || it.size;
+    }
+    // ==========================================
+
+    // Các phần xử lý dữ liệu và tính tiền giữ nguyên
     const spObj: any = {};
     specialPrintsForm.forEach(i => { if (i.name.trim()) spObj[i.name.trim()] = i.url; });
     const muObj: any = {};
     mockupsForm.forEach(i => { if (i.name.trim()) muObj[i.name.trim()] = i.url; });
 
-    const items = editForm.items || [];
     const newProductType = items.length > 1
       ? `${items[0]?.type} (+${items.length - 1} món khác)`
       : (items[0]?.type || '');
 
-    // 3. TÍNH TOÁN LẠI GIÁ TIỀN
     let tempOrderPrice = 0;
     items.forEach((it: any) => {
       const blank = podBlanks.find(b => b.name === it.type);
@@ -1017,14 +1122,13 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       }
     });
 
-    // Cập nhật state nội bộ
     const updatedOrderData = { 
       ...editForm, 
       product_type: newProductType,
       order_price: tempOrderPrice > 0 ? tempOrderPrice : editForm.order_price,
       special_print_areas: Object.keys(spObj).length > 0 ? spObj : null,
       mockup_urls: Object.keys(muObj).length > 0 ? muObj : null,
-      product_detail: JSON.stringify(items) // <--- THÊM DÒNG NÀY ĐỂ ÉP KIỂU ITEMS THÀNH CHUỖI JSON
+      product_detail: JSON.stringify(items) 
     };
 
     if (editSource === 'import') {
@@ -1034,19 +1138,17 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       setEditingIndex(null); 
     } else if (editSource === 'db') {
       try {
-        // Cập nhật giao diện ngay lập tức (Optimistic UI)
         const newDbOrders = [...dbOrders];
         newDbOrders[editingIndex] = updatedOrderData;
         setDbOrders(newDbOrders);
 
-        // Tạo payload chuẩn hóa cho Backend (Loại bỏ mảng items để tránh lỗi giống lúc Sync Import)
         const payloadForApi = {
           ...updatedOrderData,
           items: undefined 
         };
 
         await api.post('/partner/orders', { 
-          orders: [payloadForApi], // <--- GỬI PAYLOAD ĐÃ CHUẨN HÓA LÊN BACKEND
+          orders: [payloadForApi], 
           target_shop_id: selectedShopId 
         });
         
@@ -1161,22 +1263,94 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       else setSelectedRows(prev => prev.filter(id => id !== rowId));
     };
 
+    // Hàm xử lý thanh toán cho 1 đơn hàng duy nhất tại dòng
+    const handlePaySingleOrder = async (order: any) => {
+      const isValid = order.items && order.items.length > 0 && order.items.every((it: any) => it.type && it.color && it.size);
+      if (!isValid) {
+        return alert("Đơn hàng chưa được cấu hình đủ Phôi/Màu/Size hợp lệ. Vui lòng chọn lại Sản phẩm trước khi thanh toán!");
+      }
+      const isConfirmed = await confirm({
+        title: "Xác nhận thanh toán",
+        message: `Bạn muốn thanh toán chi phí sản xuất cho đơn hàng ${order.external_order_id}?`,
+        confirmText: "Thanh toán ngay",
+      });
+      if (!isConfirmed) return;
+      try {
+        await api.post('/partner/orders/pay', { order_ids: [order.id] });
+        notify("Thanh toán thành công!");
+        window.dispatchEvent(new Event('refresh_total_spend'));
+        fetchOrdersFromDB(); // Reload lại danh sách sau khi thanh toán
+      } catch (e: any) {
+        alert(e.response?.data?.error || "Đã xảy ra lỗi thanh toán.");
+      }
+    };
+
+    // Hàm cập nhật Inline (Cập nhật thẳng ngoài bảng & Tự động lưu)
+    const updateInlineItem = async (absoluteIdx: number, itemIdx: number, updates: any) => {
+      const targetOrders = isImport ? [...importOrders] : [...dbOrders];
+      const order = { ...targetOrders[absoluteIdx] };
+      const newItems = [...(order.items || [])];
+      newItems[itemIdx] = { ...newItems[itemIdx], ...updates };
+
+      // Tự động Mapping Color/Size nếu update Type (Giống hệt trong Popup)
+      if (updates.type) {
+        const newBlank = podBlanks.find(b => b.name === updates.type);
+        if (newBlank) {
+          const parseArraySafe = (data: any) => {
+            if (Array.isArray(data)) return data;
+            if (typeof data === 'string') { try { return JSON.parse(data) || []; } catch { return []; } }
+            return [];
+          };
+          const validColors = parseArraySafe(newBlank.colors);
+          const validSizes = parseArraySafe(newBlank.sizes);
+          
+          const matchedColor = validColors.find((c: string) => c.toLowerCase() === (newItems[itemIdx].color || '').trim().toLowerCase());
+          const matchedSize = validSizes.find((s: string) => s.toLowerCase() === (newItems[itemIdx].size || '').trim().toLowerCase());
+          
+          newItems[itemIdx].color = matchedColor || newItems[itemIdx].color;
+          newItems[itemIdx].size = matchedSize || newItems[itemIdx].size;
+        }
+      }
+
+      // Tính lại giá tiền
+      let tempPrice = 0;
+      newItems.forEach((it: any) => {
+        const blank = podBlanks.find(b => b.name === it.type);
+        if (blank && blank.display_price) tempPrice += blank.display_price * (it.quantity || 1);
+      });
+      order.order_price = tempPrice > 0 ? tempPrice : order.order_price;
+
+      // Cập nhật Product Type tổng
+      const newProductType = newItems.length > 1
+        ? `${newItems[0]?.type} (+${newItems.length - 1} món khác)`
+        : (newItems[0]?.type || '');
+      order.product_type = newProductType;
+      order.items = newItems;
+      targetOrders[absoluteIdx] = order;
+
+      if (isImport) {
+        setImportOrders(targetOrders); // Bản nháp thì lưu local
+      } else {
+        setDbOrders(targetOrders); // Bản thật thì cập nhật UI liền
+        // Auto-save ngầm xuống Backend
+        try {
+          const payloadForApi = { ...order, product_detail: JSON.stringify(order.items), items: undefined };
+          await api.post('/partner/orders', { orders: [payloadForApi], target_shop_id: selectedShopId });
+        } catch(e) { console.error("Lỗi auto-save", e); }
+      }
+    };
+
     const allPageRowIds = data.map((order, idx) => isImport ? (pageOffset + idx).toString() : order.id);
     const allPageSelected = data.length > 0 && allPageRowIds.every(id => selectedRows.includes(id));
 
     return (
-      <div className="overflow-x-auto rounded-xl">
+      <div className="overflow-x-auto rounded-xl pb-24 min-h-[400px]">
         <table className="w-full text-left border-collapse whitespace-nowrap min-w-max">
           <thead>
             <tr className="bg-gray-100 text-gray-600 text-[11px] uppercase tracking-widest border-b border-gray-200">
               <th className="p-4 font-bold sticky left-0 top-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.08)]">
                 <div className="flex items-center gap-3">
-                  <input 
-                    type="checkbox" 
-                    onChange={handleSelectAll} 
-                    checked={allPageSelected}
-                    className="w-4 h-4 cursor-pointer accent-[#C29017] rounded border-gray-300 transition"
-                  />
+                  <input type="checkbox" onChange={handleSelectAll} checked={allPageSelected} className="w-4 h-4 cursor-pointer accent-[#C29017] rounded border-gray-300 transition" />
                   <span>Thao tác</span>
                 </div>
               </th>
@@ -1185,10 +1359,10 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               <th className="p-4 font-bold">Trạng thái</th>
               <th className="p-4 font-bold">Tracking</th>
               <th className="p-4 font-bold">Khách Hàng</th>
-              <th className="p-4 font-bold">Liên hệ</th>
-              <th className="p-4 font-bold">Địa chỉ</th>
-              <th className="p-4 font-bold">Sản phẩm</th>
-              <th className="p-4 font-bold text-gray-900">Giá</th>
+              <th className="p-4 font-bold">SKU (Đồng bộ thiết kế)</th>
+              <th className="p-4 font-bold">Sản phẩm (Loại phôi)</th>
+              <th className="p-4 font-bold text-gray-900 text-right">Giá</th>
+              <th className="p-4 font-bold text-center">Hành động</th>
             </tr>
           </thead>
           <tbody className="text-sm">
@@ -1196,141 +1370,150 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               const absoluteIdx = pageOffset + idx;
               const rowId = isImport ? absoluteIdx.toString() : order.id;
               const isChecked = selectedRows.includes(rowId);
+              
+              // Khóa dòng nếu đơn DB đã vào chu trình (không cho edit inline)
+              const isRowLocked = !isImport && !['pending', 'complete'].includes(order.status);
 
               let statusLabel = order.status || 'pending';
               let badgeColor = 'bg-yellow-50 text-yellow-700 border-yellow-200';
-              if (order.status === 'complete') {
-                statusLabel = 'Đã thanh toán';
-                badgeColor = 'bg-blue-50 text-blue-700 border-blue-200';
-              } else if (order.status === 'processing') {
-                badgeColor = 'bg-purple-50 text-purple-700 border-purple-200';
-              } else if (order.status === 'in_transit') {
-                badgeColor = 'bg-orange-50 text-orange-700 border-orange-200';
-              } else if (order.status === 'done') {
-                badgeColor = 'bg-green-50 text-green-700 border-green-200';
-              } else if (order.status === 'cancelled') {
-                badgeColor = 'bg-red-50 text-red-700 border-red-200';
-              } else if (order.status === 'pending') {
-                statusLabel = 'Chờ thanh toán';
-              }
+              if (order.status === 'complete') { statusLabel = 'Đã thanh toán'; badgeColor = 'bg-blue-50 text-blue-700 border-blue-200'; } 
+              else if (order.status === 'processing') { badgeColor = 'bg-purple-50 text-purple-700 border-purple-200'; } 
+              else if (order.status === 'in_transit') { badgeColor = 'bg-orange-50 text-orange-700 border-orange-200'; } 
+              else if (order.status === 'done') { badgeColor = 'bg-green-50 text-green-700 border-green-200'; } 
+              else if (order.status === 'cancelled') { badgeColor = 'bg-red-50 text-red-700 border-red-200'; } 
+              else if (order.status === 'pending') { statusLabel = 'Chờ thanh toán'; }
+              
               const isFullyMapped = order.items && order.items.length > 0 && order.items.every((item: any) => item.type && item.color && item.size);
               const displayPrice = isFullyMapped ? (order.order_price || 0) : 0;
+              
               return (
                 <tr key={idx} className={`border-b border-gray-100 transition duration-200 group ${isChecked ? 'bg-[#C29017]/10' : 'hover:bg-gray-50 bg-white'}`}>
                   
                   <td className={`p-4 sticky left-0 z-10 border-r border-gray-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] transition-colors duration-200 ${isChecked ? 'bg-[#fdf9f1]' : 'bg-white group-hover:bg-gray-50'}`}>
                     <div className="flex items-center gap-3">
-                      <input 
-                        type="checkbox" 
-                        checked={isChecked}
-                        onChange={(e) => handleSelectRow(e.target.checked, rowId)}
-                        className="w-4 h-4 cursor-pointer accent-[#C29017] rounded transition"
-                      />
+                      <input type="checkbox" checked={isChecked} onChange={(e) => handleSelectRow(e.target.checked, rowId)} className="w-4 h-4 cursor-pointer accent-[#C29017] rounded transition" />
                       
-                      {(isImport || ['pending', 'complete'].includes(order.status)) ? (
+                      {(!isRowLocked) ? (
                         <>
-                          <button onClick={() => openEditModal(isImport ? absoluteIdx : idx, isImport ? 'import' : 'db')} className="text-[#C29017] font-bold hover:underline hover:text-[#a87c14] transition">Sửa</button>
+                          <button onClick={() => openEditModal(isImport ? absoluteIdx : idx, isImport ? 'import' : 'db')} className="text-[#C29017] font-bold hover:underline hover:text-[#a87c14] transition">Sửa chi tiết</button>
                           {isImport && (
                             <button onClick={() => { setImportOrders(prev => prev.filter((_, i) => i !== absoluteIdx)); }} className="text-red-500 font-bold hover:underline transition">Xóa</button>
                           )}
                         </>
                       ) : (
-                        <button onClick={() => openEditModal(idx, 'db')} className="text-teal-600 font-bold hover:underline transition">Xem</button>
+                        <button onClick={() => openEditModal(idx, 'db')} className="text-teal-600 font-bold hover:underline transition">Xem chi tiết</button>
                       )}
                     </div>
                   </td>
                   
                   <td className="p-4">
-                  <div className="flex items-center gap-1.5 group/orderid w-max">
-                    <span className="font-bold text-gray-900">{order.external_order_id}</span>
-                    <button 
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        copyToClipboard(order.external_order_id); 
-                      }} 
-                      className="text-gray-400 opacity-0 group-hover/orderid:opacity-100 transition-opacity hover:text-[#C29017]" 
-                      title="Sao chép ID đơn hàng"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
-                      </svg>
-                    </button>
-                  </div>
-                  {/* HIỂN THỊ BADGE RESHIP */}
-                  {(order.order_type === 'reshipment' || (order.external_order_id && order.external_order_id.startsWith('RS-'))) && (
-                    <div className="mt-1">
-                      <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-purple-200 shadow-sm">
-                        Đơn Reship
-                      </span>
+                    <div className="flex items-center gap-1.5 group/orderid w-max">
+                      <span className="font-bold text-gray-900">{order.external_order_id}</span>
+                      <button onClick={(e) => { e.stopPropagation(); copyToClipboard(order.external_order_id); }} className="text-gray-400 opacity-0 group-hover/orderid:opacity-100 transition-opacity hover:text-[#C29017]" title="Sao chép ID đơn hàng">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
+                      </button>
                     </div>
-                  )}
-                </td>
-                <td className="p-4 text-xs text-gray-600 font-medium">
-                  {order.order_date 
-                    ? new Date(order.order_date).toLocaleDateString('vi-VN', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric'
-                      }) 
-                    : '---'}
-                </td>
+                    {(order.order_type === 'reshipment' || (order.external_order_id && order.external_order_id.startsWith('RS-'))) && (
+                      <div className="mt-1">
+                        <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-purple-200 shadow-sm">Đơn Reship</span>
+                      </div>
+                    )}
+                  </td>
+
+                  <td className="p-4 text-xs text-gray-600 font-medium">
+                    {order.order_date ? new Date(order.order_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '---'}
+                  </td>
+
                   <td className="p-4">
                     <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border ${badgeColor}`}>
                       {statusLabel}
                     </span>
                   </td>
+
                   <td className="px-4 py-3 text-xs">
                     {order.tracking_number ? (
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1.5 group/track">
-                          <span className="font-bold text-[#C29017]">
-                            {order.tracking_number}
-                          </span>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); copyToClipboard(order.tracking_number); }} 
-                            className="text-gray-400 opacity-0 group-hover/track:opacity-100 transition-opacity hover:text-[#C29017]" 
-                            title="Sao chép"
-                          >
-                            {/* ĐÃ CHÈN VÀ CHUẨN HÓA SVG TẠI ĐÂY */}
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
-                            </svg>
+                          <span className="font-bold text-[#C29017]">{order.tracking_number}</span>
+                          <button onClick={(e) => { e.stopPropagation(); copyToClipboard(order.tracking_number); }} className="text-gray-400 opacity-0 group-hover/track:opacity-100 transition-opacity hover:text-[#C29017]" title="Sao chép">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
                           </button>
                         </div>
                         <span className="text-gray-400 font-medium">{order.shipping_carrier || 'USPS'}</span>
                       </div>
-                    ) : (
-                      <span className="text-gray-400 italic">Chưa có</span>
-                    )}
+                    ) : ( <span className="text-gray-400 italic">Chưa có</span> )}
                   </td>
+
                   <td className="p-4 font-semibold text-gray-800">{order.customer_name}</td>
-                  <td className="p-4 text-xs text-gray-500 space-y-0.5">
-                    <div>{order.customer_email || '---'}</div>
-                    <div>{order.customer_phone || '---'}</div>
-                  </td>
-                  <td className="p-4 text-gray-500 text-xs truncate max-w-[200px]" title={renderJsonObject(order.shipping_address) as string}>
-                    {renderJsonObject(order.shipping_address)}
-                  </td>
-                  <td className="p-4 align-top">
-                    <div className="flex flex-col gap-1.5 py-1">
+
+                  {/* CỘT SKU MỚI (INLINE EDIT) */}
+                  <td className="p-4 align-top min-w-[200px] w-64">
+                    <div className="flex flex-col gap-3 py-1">
                       {order.items?.map((item: any, itemIdx: number) => (
-                        <div key={itemIdx} className="text-[10px] bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200 flex items-center gap-2 w-max shadow-sm">
-                          <span className="font-extrabold text-[#C29017] bg-[#C29017]/10 px-1.5 py-0.5 rounded">{item.quantity || 1}x</span>
-                          
-                          {/* HIỂN THỊ CẢNH BÁO NẾU CHƯA CÓ PHÔI */}
-                          {item.type ? (
-                            <>
-                               <span className="font-bold text-gray-800">{item.type}</span>
-                               <span className="text-gray-500 font-medium border-l pl-2 ml-1">({item.color || 'N/A'} - {item.size || 'N/A'})</span>
-                            </>
-                          ) : (
-                            <span className="font-bold text-red-500 uppercase tracking-wider animate-pulse">Chưa map phôi (Vui lòng bấm sửa)</span>
-                          )}
+                        <div key={itemIdx} className="w-full relative shadow-sm rounded-lg">
+                          <SkuCombobox
+                            disabled={isRowLocked}
+                            value={item.sku || ''}
+                            options={sellerDesigns}
+                            onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { sku: val })}
+                            onSelect={(design) => {
+                              const libraryExtraAreas = design.extra_print_areas || [];
+                              updateInlineItem(absoluteIdx, itemIdx, {
+                                sku: design.sku,
+                                design_front: design.design_front_url,
+                                design_back: design.design_back_url,
+                                mockup: design.mockup_url,
+                                extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : undefined
+                              });
+                              notify(`Đã đồng bộ thiết kế SKU: ${design.sku}`);
+                            }}
+                          />
                         </div>
                       ))}
                     </div>
                   </td>
-                  <td className="p-4 font-bold text-gray-900">${displayPrice}</td>
+
+                  {/* CỘT SẢN PHẨM MỚI (INLINE EDIT) */}
+                  <td className="p-4 align-top min-w-[250px] w-72">
+                    <div className="flex flex-col gap-3 py-1">
+                      {order.items?.map((item: any, itemIdx: number) => (
+                        <div key={itemIdx} className="w-full flex flex-col gap-1.5 bg-gray-50/80 p-2 rounded-lg border border-gray-200 shadow-sm">
+                          <SearchableDropdown
+                            disabled={isRowLocked}
+                            value={item.type || ''}
+                            placeholder="Chọn phôi..."
+                            options={podBlanks}
+                            onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { type: val })}
+                          />
+                          <div className="text-[10px] text-gray-500 font-medium px-1 flex items-center justify-between">
+                            <span>Màu: <b className={!item.color ? 'text-red-500 font-extrabold' : 'text-gray-700'}>{item.color || 'Trống'}</b></span>
+                            <span className="text-gray-300">|</span>
+                            <span>Size: <b className={!item.size ? 'text-red-500 font-extrabold' : 'text-gray-700'}>{item.size || 'Trống'}</b></span>
+                            <span className="text-gray-300">|</span>
+                            <span>SL: <b className="text-[#C29017]">{item.quantity || 1}</b></span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </td>
+
+                  <td className="p-4 font-extrabold text-gray-900 text-right">${displayPrice}</td>
+
+                  {/* CỘT NÚT PAY MỚI */}
+                  <td className="p-4 text-center align-middle">
+                    {order.status === 'pending' && !isImport && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handlePaySingleOrder(order); }}
+                        className="bg-[#C29017] hover:bg-[#a67b13] text-white px-4 py-2 rounded-lg text-xs font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 w-full"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Pay
+                      </button>
+                    )}
+                  </td>
+                  
                 </tr>
               );
             })}
@@ -1789,13 +1972,22 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                             onChange={(newType: string) => {
                               const newBlank = podBlanks.find(b => b.name === newType);
                               const newItems = [...editForm.items];
-                              newItems[index] = { ...newItems[index], type: newType };
+                              const currentItem = newItems[index];
+                              
+                              currentItem.type = newType;
+                              
                               if (newBlank) {
                                 const parseArraySafe = (data: any) => { if (Array.isArray(data)) return data; if (typeof data === 'string') { try { return JSON.parse(data) || []; } catch { return []; } } return []; };
                                 const newBlankColors = parseArraySafe(newBlank.colors);
                                 const newBlankSizes = parseArraySafe(newBlank.sizes);
-                                if (!newBlankColors.includes(newItems[index].color)) newItems[index].color = '';
-                                if (!newBlankSizes.includes(newItems[index].size)) newItems[index].size = '';
+                                
+                                // MỚI: Tự động mapping Màu và Size từ CSV (Không phân biệt hoa/thường)
+                                const matchedColor = newBlankColors.find((c: string) => c.toLowerCase() === (currentItem.color || '').trim().toLowerCase());
+                                const matchedSize = newBlankSizes.find((s: string) => s.toLowerCase() === (currentItem.size || '').trim().toLowerCase());
+                                
+                                // Tự động gán vào ô. Nếu không khớp thì giữ nguyên chuỗi bị sai để lúc bấm "Lưu" hàm Validation sẽ bắt lỗi.
+                                currentItem.color = matchedColor || currentItem.color;
+                                currentItem.size = matchedSize || currentItem.size;
                               }
                               setEditForm({ ...editForm, items: newItems });
                             }}
@@ -1833,22 +2025,24 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         </div>
                       </div>
                       
-                      {/* HÀNG 3: Designs (Đã sửa lỗi Hover mất Popup) */}
+                      {/* HÀNG 3: Designs (Đã đồng bộ màu nền áo) */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                         {/* Mặt Trước */}
                         <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-blue-200">
                           <div className="relative group/img shrink-0">
-                            {/* Khung chứa ảnh bị cắt viền (overflow-hidden) */}
-                            <div className="w-20 h-20 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help">
+                            {/* Khung chứa ảnh: Xóa bg-gray-50, thêm style backgroundColor và viền border */}
+                            <div 
+                              className="w-20 h-20 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300"
+                              style={{ backgroundColor: getStandardColor(item.color) }}
+                            >
                               {item.design_front ? (
                                 <img src={imageError[`front-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_front)} alt="Front" className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({ ...prev, [`front-${index}`]: true }))} />
-                              ) : <span className="text-[9px] text-gray-400 font-medium text-center">No Img<br/>Front</span>}
+                              ) : <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Front</span>}
                             </div>
-                            {/* Popup nẩy ra NẰM NGOÀI khung bị cắt */}
                             {item.design_front && !imageError[`front-${index}`] && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
                                 <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
-                                  <img src={convertGoogleDriveUrl(item.design_front)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" />
+                                  <img src={convertGoogleDriveUrl(item.design_front)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
                                 </div>
                               </div>
                             )}
@@ -1862,15 +2056,18 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         {/* Mặt Sau */}
                         <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-purple-200">
                           <div className="relative group/img shrink-0">
-                            <div className="w-20 h-20 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help">
+                            <div 
+                              className="w-20 h-20 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300"
+                              style={{ backgroundColor: getStandardColor(item.color) }}
+                            >
                               {item.design_back ? (
                                 <img src={imageError[`back-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_back)} alt="Back" className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({ ...prev, [`back-${index}`]: true }))} />
-                              ) : <span className="text-[9px] text-gray-400 font-medium text-center">No Img<br/>Back</span>}
+                              ) : <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Back</span>}
                             </div>
                             {item.design_back && !imageError[`back-${index}`] && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
                                 <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
-                                  <img src={convertGoogleDriveUrl(item.design_back)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" />
+                                  <img src={convertGoogleDriveUrl(item.design_back)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
                                 </div>
                               </div>
                             )}
@@ -1884,15 +2081,18 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         {/* Mockup */}
                         <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-teal-200">
                           <div className="relative group/img shrink-0">
-                            <div className="w-20 h-20 bg-gray-50 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help">
+                            <div 
+                              className="w-20 h-20 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300"
+                              style={{ backgroundColor: getStandardColor(item.color) }}
+                            >
                               {item.mockup ? (
                                 <img src={imageError[`mockup-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.mockup)} alt="Mockup" className="w-full h-full object-cover" onError={() => setImageError(prev => ({ ...prev, [`mockup-${index}`]: true }))} />
-                              ) : <span className="text-[9px] text-gray-400 font-medium text-center">No Img<br/>Mockup</span>}
+                              ) : <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Mockup</span>}
                             </div>
                             {item.mockup && !imageError[`mockup-${index}`] && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
                                 <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
-                                  <img src={convertGoogleDriveUrl(item.mockup)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" />
+                                  <img src={convertGoogleDriveUrl(item.mockup)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
                                 </div>
                               </div>
                             )}
@@ -1919,13 +2119,16 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                             {item.extra_print_areas.map((area: any, aIdx: number) => (
                               <div key={aIdx} className="flex gap-3 bg-gray-50/80 p-3 rounded-2xl ring-1 ring-gray-100 relative group/extra transition-all hover:bg-white hover:shadow-md">
                                 <div className="relative group/img shrink-0">
-                                  <div className="w-12 h-12 bg-white rounded-lg shadow-sm flex items-center justify-center overflow-hidden cursor-help">
-                                    {area.url ? <img src={imageError[`extra-${index}-${aIdx}`] ? '/no-image.png' : convertGoogleDriveUrl(area.url)} className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({...prev, [`extra-${index}-${aIdx}`]: true}))} /> : <span className="text-[8px] text-gray-300">No Img</span>}
+                                  <div 
+                                    className="w-12 h-12 rounded-lg shadow-sm flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300"
+                                    style={{ backgroundColor: getStandardColor(item.color) }}
+                                  >
+                                    {area.url ? <img src={imageError[`extra-${index}-${aIdx}`] ? '/no-image.png' : convertGoogleDriveUrl(area.url)} className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({...prev, [`extra-${index}-${aIdx}`]: true}))} /> : <span className="text-[8px] font-bold text-gray-600 bg-white/80 backdrop-blur-sm px-1 py-0.5 rounded shadow-sm">No Img</span>}
                                   </div>
                                   {area.url && !imageError[`extra-${index}-${aIdx}`] && (
                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
                                       <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
-                                        <img src={convertGoogleDriveUrl(area.url)} className="w-auto h-auto max-w-[200px] object-contain rounded-lg" />
+                                        <img src={convertGoogleDriveUrl(area.url)} className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
                                       </div>
                                     </div>
                                   )}

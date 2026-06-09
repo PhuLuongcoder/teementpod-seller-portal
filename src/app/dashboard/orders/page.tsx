@@ -1458,7 +1458,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   <td className="p-4 align-top min-w-[200px] w-64">
                     <div className="flex flex-col gap-3 py-1">
                       {order.items?.map((item: any, itemIdx: number) => (
-                        // ĐÃ SỬA: Thêm h-[125px] và justify-center để ép chiều cao thẳng hàng với cột bên cạnh
                         <div key={itemIdx} className="w-full h-[125px] relative flex flex-col gap-2 justify-center">
                           <div className="shadow-sm rounded-lg w-full">
                             <SkuCombobox
@@ -1481,7 +1480,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                           </div>
 
                           {/* 2./ HÀNG THUMBNAIL THIẾT KẾ HIỂN THỊ NGOÀI BẢNG */}
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
                             {[
                               { label: 'Front', url: item.design_front },
                               { label: 'Back', url: item.design_back },
@@ -1489,20 +1488,22 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                             ].map((img, i) => (
                               <div key={i} className="relative group/inlineImg">
                                 <div 
-                                  className="w-8 h-8 rounded border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors"
+                                  // ĐÃ SỬA: Tăng kích thước w-8 h-8 lên w-14 h-14 (56x56px) và bo góc mềm (rounded-md)
+                                  className="w-14 h-14 rounded-md border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors"
                                   style={{ backgroundColor: getStandardColor(item.color) }}
                                 >
                                   {img.url ? (
                                     <img src={convertGoogleDriveUrl(img.url)} alt={img.label} className={`w-full h-full ${img.label === 'Mockup' ? 'object-cover' : 'object-contain p-0.5'}`} />
                                   ) : (
-                                    <span className="text-[6px] font-bold text-gray-500 uppercase bg-white/80 px-0.5 py-px rounded">{img.label}</span>
+                                    // ĐÃ SỬA: Tăng font chữ hiển thị báo thiếu ảnh lên text-[8px]
+                                    <span className="text-[8px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded shadow-sm">{img.label}</span>
                                   )}
                                 </div>
-                                {/* Khung hover phóng to ảnh thiết kế */}
+                                {/* Khung hover phóng to ảnh thiết kế (vẫn giữ nguyên chức năng này) */}
                                 {img.url && (
                                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/inlineImg:block z-[999] pointer-events-none">
-                                    <div className="bg-white p-1 rounded-xl shadow-xl border border-gray-200">
-                                      <img src={convertGoogleDriveUrl(img.url)} className="w-auto h-auto max-w-[150px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
+                                    <div className="bg-white p-1.5 rounded-xl shadow-xl border border-gray-200">
+                                      <img src={convertGoogleDriveUrl(img.url)} className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
                                     </div>
                                   </div>
                                 )}

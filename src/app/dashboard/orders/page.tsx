@@ -781,7 +781,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             let cleanVariations = variations.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
 
             // 4. Lưu lại chuỗi đã được làm sạch và thu gọn
-            originalString = `Etsy: ${shortItemName} | ${cleanVariations}`.trim();
+            originalString = cleanVariations ? cleanVariations.trim() : shortItemName;
             
           } else {
             // ==========================================

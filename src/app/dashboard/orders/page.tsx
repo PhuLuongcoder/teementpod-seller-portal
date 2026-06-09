@@ -1446,38 +1446,80 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
                   <td className="p-4 font-semibold text-gray-800">{order.customer_name}</td>
 
-                  {/* CỘT SKU MỚI (INLINE EDIT) */}
+                  {/* CỘT SKU (INLINE EDIT) & THUMBNAILS THIẾT KẾ */}
                   <td className="p-4 align-top min-w-[200px] w-64">
                     <div className="flex flex-col gap-3 py-1">
                       {order.items?.map((item: any, itemIdx: number) => (
-                        <div key={itemIdx} className="w-full relative shadow-sm rounded-lg">
-                          <SkuCombobox
-                            disabled={isRowLocked}
-                            value={item.sku || ''}
-                            options={sellerDesigns}
-                            onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { sku: val })}
-                            onSelect={(design) => {
-                              const libraryExtraAreas = design.extra_print_areas || [];
-                              updateInlineItem(absoluteIdx, itemIdx, {
-                                sku: design.sku,
-                                design_front: design.design_front_url,
-                                design_back: design.design_back_url,
-                                mockup: design.mockup_url,
-                                extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : undefined
-                              });
-                              notify(`Đã đồng bộ thiết kế SKU: ${design.sku}`);
-                            }}
-                          />
+                        <div key={itemIdx} className="w-full relative flex flex-col gap-2">
+                          <div className="shadow-sm rounded-lg w-full">
+                            <SkuCombobox
+                              disabled={isRowLocked}
+                              value={item.sku || ''}
+                              options={sellerDesigns}
+                              onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { sku: val })}
+                              onSelect={(design) => {
+                                const libraryExtraAreas = design.extra_print_areas || [];
+                                updateInlineItem(absoluteIdx, itemIdx, {
+                                  sku: design.sku,
+                                  design_front: design.design_front_url,
+                                  design_back: design.design_back_url,
+                                  mockup: design.mockup_url,
+                                  extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : undefined
+                                });
+                                notify(`Đã đồng bộ thiết kế SKU: ${design.sku}`);
+                              }}
+                            />
+                          </div>
+
+                          {/* 2./ HÀNG THUMBNAIL THIẾT KẾ HIỂN THỊ NGOÀI BẢNG */}
+                          <div className="flex items-center gap-2">
+                            {[
+                              { label: 'Front', url: item.design_front },
+                              { label: 'Back', url: item.design_back },
+                              { label: 'Mockup', url: item.mockup }
+                            ].map((img, i) => (
+                              <div key={i} className="relative group/inlineImg">
+                                <div 
+                                  className="w-8 h-8 rounded border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors"
+                                  style={{ backgroundColor: getStandardColor(item.color) }}
+                                >
+                                  {img.url ? (
+                                    <img src={convertGoogleDriveUrl(img.url)} alt={img.label} className={`w-full h-full ${img.label === 'Mockup' ? 'object-cover' : 'object-contain p-0.5'}`} />
+                                  ) : (
+                                    <span className="text-[6px] font-bold text-gray-500 uppercase bg-white/80 px-0.5 py-px rounded">{img.label}</span>
+                                  )}
+                                </div>
+                                {/* Khung hover phóng to ảnh thiết kế */}
+                                {img.url && (
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/inlineImg:block z-[999] pointer-events-none">
+                                    <div className="bg-white p-1 rounded-xl shadow-xl border border-gray-200">
+                                      <img src={convertGoogleDriveUrl(img.url)} className="w-auto h-auto max-w-[150px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
                         </div>
                       ))}
                     </div>
                   </td>
 
-                  {/* CỘT SẢN PHẨM MỚI (INLINE EDIT) */}
+                  {/* CỘT SẢN PHẨM (INLINE EDIT) & CHUỖI GỐC */}
                   <td className="p-4 align-top min-w-[250px] w-72">
                     <div className="flex flex-col gap-3 py-1">
                       {order.items?.map((item: any, itemIdx: number) => (
                         <div key={itemIdx} className="w-full flex flex-col gap-1.5 bg-gray-50/80 p-2 rounded-lg border border-gray-200 shadow-sm">
+                          
+                          {/* 1./ HIỂN THỊ CHUỖI THÔNG TIN GỐC TỪ FILE */}
+                          {item.original_string && (
+                            <div className="flex items-center gap-1 bg-amber-100/50 border border-amber-200/60 px-1.5 py-1 rounded text-amber-700" title={item.original_string}>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" /></svg>
+                              <span className="text-[9px] font-bold truncate">{item.original_string}</span>
+                            </div>
+                          )}
+
                           <SearchableDropdown
                             disabled={isRowLocked}
                             value={item.type || ''}

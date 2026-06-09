@@ -246,14 +246,23 @@ export default function OrdersPage() {
     if (!colorName) return '#f9fafb'; // Mặc định là màu xám nhạt (gray-50)
     const name = colorName.toLowerCase().trim();
     const colorMap: Record<string, string> = {
+      // Các màu cơ bản đặc thù
       'sport grey': '#d1d5db', 'dark heather': '#374151', 'heather navy': '#312e81',
       'light pink': '#fbcfe8', 'light blue': '#bfdbfe', 'navy': '#1e3a8a',
       'royal': '#1d4ed8', 'maroon': '#7f1d1d', 'forest green': '#064e3b',
       'charcoal': '#3f3f46', 'sand': '#e5e5cb', 'ash': '#e2e8f0',
       'irish green': '#16a34a', 'carolina blue': '#7dd3fc', 'heliconia': '#d946ef',
-      'sapphire': '#0284c7', 'kelly green': '#22c55e', 'daisy': '#fde047'
+      'sapphire': '#0284c7', 'kelly green': '#22c55e', 'daisy': '#fde047',
+      
+      // MỚI THÊM: Các màu hệ Mineral (Wash/Vintage)
+      'mineral black': '#363636',  // Đen phai sẫm
+      'mineral navy': '#2c3e50',   // Xanh than phai
+      'mineral silver': '#b0b3b8', // Bạc phai
+      'mineral gray': '#696969',   // Xám phai
+      'mineral purple': '#6d5b7b'  // Tím phai cổ điển
     };
-    // Nếu có trong từ điển thì lấy mã Hex, nếu không thì trả về tên gốc (CSS tự hiểu các màu chuẩn như 'black', 'red', 'pink')
+    
+    // Nếu có trong từ điển thì lấy mã Hex, nếu không thì trả về tên gốc (CSS tự hiểu các màu chuẩn như 'black', 'red')
     return colorMap[name] || colorName;
   };
   // Import tab pagination
@@ -1486,24 +1495,24 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               { label: 'Back', url: item.design_back },
                               { label: 'Mockup', url: item.mockup }
                             ].map((img, i) => (
-                              <div key={i} className="relative group/inlineImg">
+                              <div key={i} className="relative group/inlineImg hover:z-[9999]">
                                 <div 
-                                  // ĐÃ SỬA: Tăng kích thước w-8 h-8 lên w-14 h-14 (56x56px) và bo góc mềm (rounded-md)
-                                  className="w-14 h-14 rounded-md border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors"
+                                  // ĐÃ SỬA: Ép kích thước lên kịch trần w-[70px] h-[70px]
+                                  className="w-[70px] h-[70px] rounded-md border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors"
                                   style={{ backgroundColor: getStandardColor(item.color) }}
                                 >
                                   {img.url ? (
                                     <img src={convertGoogleDriveUrl(img.url)} alt={img.label} className={`w-full h-full ${img.label === 'Mockup' ? 'object-cover' : 'object-contain p-0.5'}`} />
                                   ) : (
-                                    // ĐÃ SỬA: Tăng font chữ hiển thị báo thiếu ảnh lên text-[8px]
-                                    <span className="text-[8px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded shadow-sm">{img.label}</span>
+                                    // ĐÃ SỬA: Tăng cỡ chữ No Img lên text-[9px] cho cân đối với khung to
+                                    <span className="text-[9px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded shadow-sm">{img.label}</span>
                                   )}
                                 </div>
-                                {/* Khung hover phóng to ảnh thiết kế (vẫn giữ nguyên chức năng này) */}
+                                {/* Khung hover phóng to ảnh thiết kế */}
                                 {img.url && (
-                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/inlineImg:block z-[999] pointer-events-none">
-                                    <div className="bg-white p-1.5 rounded-xl shadow-xl border border-gray-200">
-                                      <img src={convertGoogleDriveUrl(img.url)} className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
+                                    <div className="bg-white p-1.5 rounded-xl shadow-2xl border border-gray-200">
+                                      <img src={convertGoogleDriveUrl(img.url)} className="w-auto h-auto max-w-[250px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
                                     </div>
                                   </div>
                                 )}

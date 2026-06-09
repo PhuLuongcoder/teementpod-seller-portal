@@ -1403,7 +1403,9 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         <div key={`${uniqueRowKey}-item-${itemIdx}`} className="flex gap-5 p-3 bg-white rounded-xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all relative group/itemcard">
                           
                           {/* NỬA TRÁI: SKU & HÌNH ẢNH */}
-                          <div className="w-[200px] shrink-0 flex flex-col gap-2.5 border-r border-gray-100 pr-5">
+                          <div className="w-[240px] shrink-0 flex flex-col gap-2.5 border-r border-gray-100 pr-5">
+                            
+                            {/* 1. Dropdown chọn SKU */}
                             <div className="shadow-sm rounded-lg w-full">
                               <SkuCombobox
                                 disabled={isRowLocked}
@@ -1424,11 +1426,23 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               />
                             </div>
                             
+                            {/* 2. Thumbnails Thiết Kế */}
                             <div className="flex items-center gap-2 mt-0.5">
-                              {[ { label: 'Front', url: item.design_front }, { label: 'Back', url: item.design_back }, { label: 'Mockup', url: item.mockup } ].map((img, i) => (
+                              {[
+                                { label: 'Front', url: item.design_front },
+                                { label: 'Back', url: item.design_back },
+                                { label: 'Mockup', url: item.mockup }
+                              ].map((img, i) => (
                                 <div key={i} className="relative group/inlineImg">
-                                  <div className="w-[50px] h-[50px] rounded-md border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors" style={{ backgroundColor: getStandardColor(item.color) }}>
-                                    {img.url ? ( <img src={convertGoogleDriveUrl(img.url)} className={`w-full h-full ${img.label === 'Mockup' ? 'object-cover' : 'object-contain p-0.5'}`} /> ) : ( <span className="text-[7px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded">{img.label}</span> )}
+                                  <div 
+                                    className="w-[50px] h-[50px] rounded-md border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors"
+                                    style={{ backgroundColor: getStandardColor(item.color) }}
+                                  >
+                                    {img.url ? (
+                                      <img src={convertGoogleDriveUrl(img.url)} alt={img.label} className={`w-full h-full ${img.label === 'Mockup' ? 'object-cover' : 'object-contain p-0.5'}`} />
+                                    ) : (
+                                      <span className="text-[7px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded">{img.label}</span>
+                                    )}
                                   </div>
                                   {img.url && (
                                     <div className="absolute top-full left-0 mt-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
@@ -1440,6 +1454,36 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                 </div>
                               ))}
                             </div>
+
+                            {/* 3. MỚI: Ô NHẬP LINK INLINE (AUTO-SAVE) */}
+                            <div className="flex flex-col gap-1.5 mt-auto">
+                              <input
+                                // Kỹ thuật nâng cao: Gắn kèm chính cái link vào key để ép React reset ô nhập liệu nếu Seller đổi SKU khác
+                                key={`front-${uniqueRowKey}-${itemIdx}-${item.design_front || 'empty'}`}
+                                type="text"
+                                disabled={isRowLocked}
+                                placeholder="🔗 Link Design Mặt Trước..."
+                                defaultValue={item.design_front || ''}
+                                onBlur={(e) => {
+                                  if (e.target.value === item.design_front) return;
+                                  updateInlineItem(absoluteIdx, itemIdx, { design_front: e.target.value });
+                                }}
+                                className="w-full text-[9px] px-2 py-1.5 bg-blue-50/30 border border-blue-100/50 rounded-md outline-none focus:border-blue-400 focus:bg-blue-50 text-gray-700 transition-all placeholder-gray-400 shadow-sm"
+                              />
+                              <input
+                                key={`back-${uniqueRowKey}-${itemIdx}-${item.design_back || 'empty'}`}
+                                type="text"
+                                disabled={isRowLocked}
+                                placeholder="🔗 Link Design Mặt Sau (Nếu có)..."
+                                defaultValue={item.design_back || ''}
+                                onBlur={(e) => {
+                                  if (e.target.value === item.design_back) return;
+                                  updateInlineItem(absoluteIdx, itemIdx, { design_back: e.target.value });
+                                }}
+                                className="w-full text-[9px] px-2 py-1.5 bg-blue-50/30 border border-blue-100/50 rounded-md outline-none focus:border-blue-400 focus:bg-blue-50 text-gray-700 transition-all placeholder-gray-400 shadow-sm"
+                              />
+                            </div>
+
                           </div>
 
                           {/* NỬA PHẢI: PHÔI, SIZE, MÀU & GHI CHÚ */}

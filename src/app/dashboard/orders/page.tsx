@@ -1400,10 +1400,10 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               // Dòng chẵn màu trắng, dòng lẻ màu xám xanh siêu nhạt (slate-50) để dịu mắt
               const rowBg = isChecked ? 'bg-[#C29017]/10' : (isEven ? 'bg-white' : 'bg-slate-50'); 
               const hoverEffect = isChecked ? '' : 'hover:bg-blue-50/50';
-
+              const uniqueRowKey = order.id || order.external_order_id || `import-row-${absoluteIdx}`;
               return (
                 // 2. TĂNG ĐỘ ĐẬM CỦA ĐƯỜNG KẺ NGANG (border-b-2 border-gray-200)
-                <tr key={idx} className={`border-b-2 border-gray-200 transition duration-200 group ${rowBg} ${hoverEffect}`}>
+                <tr key={uniqueRowKey} className={`border-b-2 border-gray-200 transition duration-200 group ${rowBg} ${hoverEffect}`}>
                   
                   {/* Cột Thao tác (Sticky) cũng phải đồng bộ màu nền với dòng để khi trượt ngang không bị lỗi hiển thị */}
                   <td className={`p-4 sticky left-0 z-10 border-r border-gray-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] transition-colors duration-200 ${rowBg} ${isChecked ? '' : 'group-hover:bg-blue-50/50'}`}>
@@ -1464,10 +1464,11 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   <td className="p-4 font-semibold text-gray-800">{order.customer_name}</td>
 
                   {/* CỘT SKU (INLINE EDIT) & THUMBNAILS THIẾT KẾ */}
-                  <td className="p-4 align-top min-w-[200px] w-64">
+                  {/* ĐÃ SỬA: Thêm relative và hover:z-[90] vào thẳng thẻ td này */}
+                  <td className="p-4 align-top min-w-[200px] w-64 relative hover:z-[90]">
                     <div className="flex flex-col gap-3 py-1">
                       {order.items?.map((item: any, itemIdx: number) => (
-                        <div key={itemIdx} className="w-full h-[125px] relative flex flex-col gap-2 justify-center">
+                        <div key={`${uniqueRowKey}-item-${itemIdx}`} className="w-full h-[125px] relative flex flex-col gap-2 justify-center">
                           <div className="shadow-sm rounded-lg w-full">
                             <SkuCombobox
                               disabled={isRowLocked}
@@ -1495,22 +1496,20 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               { label: 'Back', url: item.design_back },
                               { label: 'Mockup', url: item.mockup }
                             ].map((img, i) => (
-                              <div key={i} className="relative group/inlineImg hover:z-[9999]">
+                              <div key={i} className="relative group/inlineImg">
                                 <div 
-                                  // ĐÃ SỬA: Ép kích thước lên kịch trần w-[70px] h-[70px]
                                   className="w-[70px] h-[70px] rounded-md border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors"
                                   style={{ backgroundColor: getStandardColor(item.color) }}
                                 >
                                   {img.url ? (
                                     <img src={convertGoogleDriveUrl(img.url)} alt={img.label} className={`w-full h-full ${img.label === 'Mockup' ? 'object-cover' : 'object-contain p-0.5'}`} />
                                   ) : (
-                                    // ĐÃ SỬA: Tăng cỡ chữ No Img lên text-[9px] cho cân đối với khung to
                                     <span className="text-[9px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded shadow-sm">{img.label}</span>
                                   )}
                                 </div>
                                 {/* Khung hover phóng to ảnh thiết kế */}
                                 {img.url && (
-                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
+                                  <div className="absolute top-0 left-full ml-3 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
                                     <div className="bg-white p-1.5 rounded-xl shadow-2xl border border-gray-200">
                                       <img src={convertGoogleDriveUrl(img.url)} className="w-auto h-auto max-w-[250px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
                                     </div>
@@ -1529,7 +1528,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   <td className="p-4 align-top min-w-[250px] w-72">
                     <div className="flex flex-col gap-3 py-1">
                       {order.items?.map((item: any, itemIdx: number) => (
-                        <div key={itemIdx} className="w-full h-[125px] flex flex-col gap-1.5 bg-white p-2 rounded-lg border border-gray-200 shadow-md justify-center">
+                        <div key={`${uniqueRowKey}-item-${itemIdx}`} className="w-full h-[125px] flex flex-col gap-1.5 bg-white p-2 rounded-lg border border-gray-200 shadow-md justify-center">
                           
                           {/* 1./ HIỂN THỊ CHUỖI THÔNG TIN GỐC TỪ FILE */}
                           {item.original_string && (
@@ -1559,6 +1558,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                       {/* 2./ MỚI: VÙNG GHI CHÚ ĐƠN HÀNG Ở DƯỚI CÙNG (AUTO-SAVE) */}
                       <div className="mt-0.5">
                         <input
+                          key={`note-${uniqueRowKey}`}
                           type="text"
                           disabled={isRowLocked}
                           placeholder="✏️ Ghi chú đơn hàng (nếu có)..."

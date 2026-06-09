@@ -726,7 +726,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
           if (isEtsyFormat) {
             // ==========================================
-            // 1. MAPPING CHO FILE ETSY
+            // 1. MAPPING CHO FILE ETSY (ĐÃ DỌN SẠCH REGEX CŨ)
             // ==========================================
             name = row['Ship Name']?.trim() || '';
             line1 = row['Ship Address1']?.trim() || '';
@@ -740,6 +740,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             rawSku = row['SKU'] || '';
             tracking = row['Tracking']?.trim() || '';
 
+            // Tách Size và Color từ cột Variations ("SIZE:Blouse-L,Color:Yellow" hoặc "Type:T-Shirt XL")
             const variations = row['Variations'] || '';
             const varParts = variations.split(',');
             
@@ -766,21 +767,15 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             // Etsy không có trường Type riêng lẻ, cắt tạm đoạn đầu của Item Name để làm Type
             rawType = row['Item Name'] ? row['Item Name'].split(',')[0].trim() : '';
             
-            // Design Links để trống hoàn toàn để seller tự bổ sung tay sau trên UI
-            designFront = '';
-            designBack = '';
-            mockup = '';
+            designFront = ''; designBack = ''; mockup = '';
+            
             let itemName = row['Item Name'] || '';
             itemName = itemName.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
-            
-            // 2. Cắt ngắn tên sản phẩm (Chỉ lấy phần đầu tiên trước dấu phẩy)
-            // Ví dụ: "Áo thun A, Áo thun B, Áo thun C" -> Chỉ lấy "Áo thun A"
             const shortItemName = itemName.split(',')[0].trim();
             
-            // 3. Dịch ngược cả ký tự trong Variations (nếu có)
             let cleanVariations = variations.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
 
-            // 4. Lưu lại chuỗi đã được làm sạch và thu gọn
+            // Chỉ hiển thị thông tin Variations, bỏ qua Tên sản phẩm dài dòng
             originalString = cleanVariations ? cleanVariations.trim() : shortItemName;
             
           } else {
@@ -1262,44 +1257,30 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       else setSelectedRows(prev => prev.filter(id => id !== rowId));
     };
 
-    // Hàm xử lý thanh toán cho 1 đơn hàng duy nhất tại dòng
     const handlePaySingleOrder = async (order: any) => {
       const isValid = order.items && order.items.length > 0 && order.items.every((it: any) => it.type && it.color && it.size);
-      if (!isValid) {
-        return alert("Đơn hàng chưa được cấu hình đủ Phôi/Màu/Size hợp lệ. Vui lòng chọn lại Sản phẩm trước khi thanh toán!");
-      }
-      const isConfirmed = await confirm({
-        title: "Xác nhận thanh toán",
-        message: `Bạn muốn thanh toán chi phí sản xuất cho đơn hàng ${order.external_order_id}?`,
-        confirmText: "Thanh toán ngay",
-      });
+      if (!isValid) return alert("Đơn hàng chưa được cấu hình đủ Phôi/Màu/Size hợp lệ.");
+      
+      const isConfirmed = await confirm({ title: "Xác nhận thanh toán", message: `Bạn muốn thanh toán đơn ${order.external_order_id}?`, confirmText: "Thanh toán ngay" });
       if (!isConfirmed) return;
       try {
         await api.post('/partner/orders/pay', { order_ids: [order.id] });
         notify("Thanh toán thành công!");
         window.dispatchEvent(new Event('refresh_total_spend'));
-        fetchOrdersFromDB(); // Reload lại danh sách sau khi thanh toán
-      } catch (e: any) {
-        alert(e.response?.data?.error || "Đã xảy ra lỗi thanh toán.");
-      }
+        fetchOrdersFromDB(); 
+      } catch (e: any) { alert(e.response?.data?.error || "Đã xảy ra lỗi thanh toán."); }
     };
 
-    // Hàm cập nhật Inline (Cập nhật thẳng ngoài bảng & Tự động lưu)
     const updateInlineItem = async (absoluteIdx: number, itemIdx: number, updates: any) => {
       const targetOrders = isImport ? [...importOrders] : [...dbOrders];
       const order = { ...targetOrders[absoluteIdx] };
       const newItems = [...(order.items || [])];
       newItems[itemIdx] = { ...newItems[itemIdx], ...updates };
 
-      // Tự động Mapping Color/Size nếu update Type (Giống hệt trong Popup)
       if (updates.type) {
         const newBlank = podBlanks.find(b => b.name === updates.type);
         if (newBlank) {
-          const parseArraySafe = (data: any) => {
-            if (Array.isArray(data)) return data;
-            if (typeof data === 'string') { try { return JSON.parse(data) || []; } catch { return []; } }
-            return [];
-          };
+          const parseArraySafe = (data: any) => { if (Array.isArray(data)) return data; if (typeof data === 'string') { try { return JSON.parse(data) || []; } catch { return []; } } return []; };
           const validColors = parseArraySafe(newBlank.colors);
           const validSizes = parseArraySafe(newBlank.sizes);
           
@@ -1311,27 +1292,19 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         }
       }
 
-      // Tính lại giá tiền
       let tempPrice = 0;
       newItems.forEach((it: any) => {
         const blank = podBlanks.find(b => b.name === it.type);
         if (blank && blank.display_price) tempPrice += blank.display_price * (it.quantity || 1);
       });
       order.order_price = tempPrice > 0 ? tempPrice : order.order_price;
-
-      // Cập nhật Product Type tổng
-      const newProductType = newItems.length > 1
-        ? `${newItems[0]?.type} (+${newItems.length - 1} món khác)`
-        : (newItems[0]?.type || '');
-      order.product_type = newProductType;
+      order.product_type = newItems.length > 1 ? `${newItems[0]?.type} (+${newItems.length - 1} món khác)` : (newItems[0]?.type || '');
       order.items = newItems;
       targetOrders[absoluteIdx] = order;
 
-      if (isImport) {
-        setImportOrders(targetOrders); // Bản nháp thì lưu local
-      } else {
-        setDbOrders(targetOrders); // Bản thật thì cập nhật UI liền
-        // Auto-save ngầm xuống Backend
+      if (isImport) { setImportOrders(targetOrders); } 
+      else {
+        setDbOrders(targetOrders);
         try {
           const payloadForApi = { ...order, product_detail: JSON.stringify(order.items), items: undefined };
           await api.post('/partner/orders', { orders: [payloadForApi], target_shop_id: selectedShopId });
@@ -1358,8 +1331,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               <th className="p-4 font-bold">Trạng thái</th>
               <th className="p-4 font-bold">Tracking</th>
               <th className="p-4 font-bold">Khách Hàng</th>
-              <th className="p-4 font-bold">SKU (Đồng bộ thiết kế)</th>
-              <th className="p-4 font-bold">Sản phẩm (Loại phôi)</th>
+              <th className="p-4 font-bold min-w-[500px]">Chi tiết Sản phẩm & Thiết kế</th>
               <th className="p-4 font-bold text-gray-900 text-right">Giá</th>
               <th className="p-4 font-bold text-center">Hành động</th>
             </tr>
@@ -1369,8 +1341,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               const absoluteIdx = pageOffset + idx;
               const rowId = isImport ? absoluteIdx.toString() : order.id;
               const isChecked = selectedRows.includes(rowId);
-              
-              // Khóa dòng nếu đơn DB đã vào chu trình (không cho edit inline)
               const isRowLocked = !isImport && !['pending', 'complete'].includes(order.status);
 
               let statusLabel = order.status || 'pending';
@@ -1385,10 +1355,8 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               const isFullyMapped = order.items && order.items.length > 0 && order.items.every((item: any) => item.type && item.color && item.size);
               const displayPrice = isFullyMapped ? (order.order_price || 0) : 0;
               
-              // ĐÃ SỬA: Chỉ khai báo 1 lần duy nhất để tránh sập React
+              // CHỈ KHAI BÁO 1 LẦN DUY NHẤT ĐỂ TRÁNH SẬP WEB
               const uniqueRowKey = order.id || order.external_order_id || `import-row-${absoluteIdx}`;
-              
-              // 1. TẠO HIỆU ỨNG SỌC VẰN (ZEBRA STRIPING) CHO CÁC DÒNG
               const isEven = idx % 2 === 0;
               const rowBg = isChecked ? 'bg-[#C29017]/10' : (isEven ? 'bg-white' : 'bg-slate-50'); 
               const hoverEffect = isChecked ? '' : 'hover:bg-blue-50/50';
@@ -1396,21 +1364,15 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               return (
                 <tr key={uniqueRowKey} className={`border-b-2 border-gray-200 transition duration-200 group ${rowBg} ${hoverEffect}`}>
                   
-                  {/* CỘT THAO TÁC */}
                   <td className={`p-4 sticky left-0 z-10 border-r border-gray-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] transition-colors duration-200 ${rowBg} ${isChecked ? '' : 'group-hover:bg-blue-50/50'}`}>
                     <div className="flex items-center gap-3">
                       <input type="checkbox" checked={isChecked} onChange={(e) => handleSelectRow(e.target.checked, rowId)} className="w-4 h-4 cursor-pointer accent-[#C29017] rounded transition" />
-                      
                       {(!isRowLocked) ? (
                         <>
                           <button onClick={() => openEditModal(isImport ? absoluteIdx : idx, isImport ? 'import' : 'db')} className="text-[#C29017] font-bold hover:underline hover:text-[#a87c14] transition">Sửa chi tiết</button>
-                          {isImport && (
-                            <button onClick={() => { setImportOrders(prev => prev.filter((_, i) => i !== absoluteIdx)); }} className="text-red-500 font-bold hover:underline transition">Xóa</button>
-                          )}
+                          {isImport && <button onClick={() => { setImportOrders(prev => prev.filter((_, i) => i !== absoluteIdx)); }} className="text-red-500 font-bold hover:underline transition">Xóa</button>}
                         </>
-                      ) : (
-                        <button onClick={() => openEditModal(idx, 'db')} className="text-teal-600 font-bold hover:underline transition">Xem chi tiết</button>
-                      )}
+                      ) : ( <button onClick={() => openEditModal(idx, 'db')} className="text-teal-600 font-bold hover:underline transition">Xem chi tiết</button> )}
                     </div>
                   </td>
                   
@@ -1425,9 +1387,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   </td>
 
                   <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border ${badgeColor}`}>
-                      {statusLabel}
-                    </span>
+                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border ${badgeColor}`}>{statusLabel}</span>
                   </td>
 
                   <td className="px-4 py-3 text-xs">
@@ -1436,146 +1396,108 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
                   <td className="p-4 font-semibold text-gray-800">{order.customer_name}</td>
 
-                  {/* CỘT SKU (INLINE EDIT) & THUMBNAILS THIẾT KẾ */}
-                  <td className="p-4 align-top min-w-[200px] w-64 relative hover:z-[90]">
-                    <div className="flex flex-col gap-3 py-1">
+                  {/* CỘT SẢN PHẨM & THIẾT KẾ ĐÃ GỘP CHUNG 1 THẺ CARD DUY NHẤT */}
+                  <td className="p-4 align-top min-w-[500px] relative hover:z-[90]">
+                    <div className="flex flex-col gap-4 py-1">
                       {order.items?.map((item: any, itemIdx: number) => (
-                        // ĐÃ SỬA: Gắn tag "sku" vào key để độc nhất vô nhị
-                        <div key={`${uniqueRowKey}-sku-${itemIdx}`} className="w-full h-[125px] relative flex flex-col gap-2 justify-center">
-                          <div className="shadow-sm rounded-lg w-full">
-                            <SkuCombobox
-                              disabled={isRowLocked}
-                              value={item.sku || ''}
-                              options={sellerDesigns}
-                              onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { sku: val })}
-                              onSelect={(design) => {
-                                const libraryExtraAreas = design.extra_print_areas || [];
-                                updateInlineItem(absoluteIdx, itemIdx, {
-                                  sku: design.sku,
-                                  design_front: design.design_front_url,
-                                  design_back: design.design_back_url,
-                                  mockup: design.mockup_url,
-                                  extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : undefined
-                                });
-                              }}
-                            />
-                          </div>
-
-                          {/* 2./ HÀNG THUMBNAIL THIẾT KẾ HIỂN THỊ NGOÀI BẢNG */}
-                          <div className="flex items-center gap-3">
-                            {[
-                              { label: 'Front', url: item.design_front },
-                              { label: 'Back', url: item.design_back },
-                              { label: 'Mockup', url: item.mockup }
-                            ].map((img, i) => (
-                              <div key={i} className="relative group/inlineImg">
-                                <div 
-                                  className="w-[70px] h-[70px] rounded-md border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors"
-                                  style={{ backgroundColor: getStandardColor(item.color) }}
-                                >
-                                  {img.url ? (
-                                    <img src={convertGoogleDriveUrl(img.url)} alt={img.label} className={`w-full h-full ${img.label === 'Mockup' ? 'object-cover' : 'object-contain p-0.5'}`} />
-                                  ) : (
-                                    <span className="text-[9px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded shadow-sm">{img.label}</span>
+                        <div key={`${uniqueRowKey}-item-${itemIdx}`} className="flex gap-5 p-3 bg-white rounded-xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all relative group/itemcard">
+                          
+                          {/* NỬA TRÁI: SKU & HÌNH ẢNH */}
+                          <div className="w-[200px] shrink-0 flex flex-col gap-2.5 border-r border-gray-100 pr-5">
+                            <div className="shadow-sm rounded-lg w-full">
+                              <SkuCombobox
+                                disabled={isRowLocked}
+                                value={item.sku || ''}
+                                options={sellerDesigns}
+                                onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { sku: val })}
+                                onSelect={(design) => {
+                                  const libraryExtraAreas = design.extra_print_areas || [];
+                                  updateInlineItem(absoluteIdx, itemIdx, {
+                                    sku: design.sku,
+                                    design_front: design.design_front_url,
+                                    design_back: design.design_back_url,
+                                    mockup: design.mockup_url,
+                                    extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : undefined
+                                  });
+                                  notify(`Đã đồng bộ thiết kế SKU: ${design.sku}`);
+                                }}
+                              />
+                            </div>
+                            
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {[ { label: 'Front', url: item.design_front }, { label: 'Back', url: item.design_back }, { label: 'Mockup', url: item.mockup } ].map((img, i) => (
+                                <div key={i} className="relative group/inlineImg">
+                                  <div className="w-[50px] h-[50px] rounded-md border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors" style={{ backgroundColor: getStandardColor(item.color) }}>
+                                    {img.url ? ( <img src={convertGoogleDriveUrl(img.url)} className={`w-full h-full ${img.label === 'Mockup' ? 'object-cover' : 'object-contain p-0.5'}`} /> ) : ( <span className="text-[7px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded">{img.label}</span> )}
+                                  </div>
+                                  {img.url && (
+                                    <div className="absolute top-full left-0 mt-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
+                                      <div className="bg-white p-1.5 rounded-xl shadow-2xl border border-gray-200">
+                                        <img src={convertGoogleDriveUrl(img.url)} className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
-                                {/* Khung hover phóng to ảnh thiết kế */}
-                                {img.url && (
-                                  <div className="absolute top-0 left-full ml-3 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
-                                    <div className="bg-white p-1.5 rounded-xl shadow-2xl border border-gray-200">
-                                      <img src={convertGoogleDriveUrl(img.url)} className="w-auto h-auto max-w-[250px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-
-                        </div>
-                      ))}
-                    </div>
-                  </td>
-
-                  {/* CỘT SẢN PHẨM (INLINE EDIT) & CHUỖI GỐC */}
-                  <td className="p-4 align-top min-w-[250px] w-72">
-                    <div className="flex flex-col gap-3 py-1">
-                      {order.items?.map((item: any, itemIdx: number) => (
-                        <div key={`${uniqueRowKey}-prod-${itemIdx}`} className="w-full h-[125px] flex flex-col gap-1.5 bg-white p-2 rounded-lg border border-gray-200 shadow-md justify-center">
-                          
-                          {/* 1./ HIỂN THỊ CHUỖI THÔNG TIN GỐC TỪ FILE */}
-                          {item.original_string && (
-                            <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-1.5 py-1 rounded text-amber-700" title={item.original_string}>
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" /></svg>
-                              <span className="text-[9px] font-bold truncate">{item.original_string}</span>
+                              ))}
                             </div>
-                          )}
+                          </div>
 
-                          <SearchableDropdown
-                            disabled={isRowLocked}
-                            value={item.type || ''}
-                            placeholder="Chọn phôi..."
-                            options={podBlanks}
-                            onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { type: val })}
-                          />
-                          <div className="text-[10px] text-gray-500 font-medium px-1 flex items-center justify-between">
-                            <span>Màu: <b className={!item.color ? 'text-red-500 font-extrabold' : 'text-gray-700'}>{item.color || 'Trống'}</b></span>
-                            <span className="text-gray-300">|</span>
-                            <span>Size: <b className={!item.size ? 'text-red-500 font-extrabold' : 'text-gray-700'}>{item.size || 'Trống'}</b></span>
-                            <span className="text-gray-300">|</span>
-                            <span>SL: <b className="text-[#C29017]">{item.quantity || 1}</b></span>
+                          {/* NỬA PHẢI: PHÔI, SIZE, MÀU & GHI CHÚ */}
+                          <div className="flex-1 flex flex-col gap-2 justify-center">
+                            
+                            {item.original_string && (
+                              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2 py-1.5 rounded text-amber-700 w-fit max-w-full">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" /></svg>
+                                <span className="text-[10px] font-bold truncate tracking-tight">{item.original_string}</span>
+                              </div>
+                            )}
+
+                            <SearchableDropdown disabled={isRowLocked} value={item.type || ''} placeholder="Chọn phôi..." options={podBlanks} onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { type: val })} />
+                            
+                            <div className="text-[10px] text-gray-500 font-medium px-1.5 flex items-center justify-between bg-gray-50 rounded border border-gray-100 py-1.5">
+                              <span>Màu: <b className={!item.color ? 'text-red-500 font-extrabold' : 'text-gray-700 uppercase'}>{item.color || 'Trống'}</b></span>
+                              <span className="text-gray-300">|</span>
+                              <span>Size: <b className={!item.size ? 'text-red-500 font-extrabold' : 'text-gray-700 uppercase'}>{item.size || 'Trống'}</b></span>
+                              <span className="text-gray-300">|</span>
+                              <span>SL: <b className="text-[#C29017] text-xs">{item.quantity || 1}</b></span>
+                            </div>
+
+                            <input
+                              key={`note-${uniqueRowKey}-${itemIdx}`}
+                              type="text"
+                              disabled={isRowLocked}
+                              placeholder="✏️ Thêm ghi chú cho hệ thống..."
+                              defaultValue={order.order_note || ''}
+                              onBlur={(e) => {
+                                if (e.target.value === order.order_note) return;
+                                const targetOrders = isImport ? [...importOrders] : [...dbOrders];
+                                const updatedOrder = { ...targetOrders[absoluteIdx], order_note: e.target.value };
+                                targetOrders[absoluteIdx] = updatedOrder;
+                                if (isImport) setImportOrders(targetOrders);
+                                else {
+                                  setDbOrders(targetOrders);
+                                  const payloadForApi = { ...updatedOrder, product_detail: JSON.stringify(updatedOrder.items), items: undefined };
+                                  api.post('/partner/orders', { orders: [payloadForApi], target_shop_id: selectedShopId }).catch(err => console.error(err));
+                                }
+                              }}
+                              className="w-full bg-yellow-50/50 border border-yellow-200/80 text-[10px] px-2 py-1.5 rounded-md outline-none focus:border-yellow-400 focus:bg-yellow-50 text-gray-700 placeholder-gray-400 shadow-sm mt-0.5"
+                            />
                           </div>
                         </div>
                       ))}
-
-                      {/* 2./ MỚI: VÙNG GHI CHÚ ĐƠN HÀNG Ở DƯỚI CÙNG (AUTO-SAVE) */}
-                      <div className="mt-0.5">
-                        <input
-                          key={`note-${uniqueRowKey}`}
-                          type="text"
-                          disabled={isRowLocked}
-                          placeholder="✏️ Ghi chú đơn hàng (nếu có)..."
-                          defaultValue={order.order_note || ''}
-                          onBlur={(e) => {
-                            // Chỉ lưu nếu giá trị thực sự bị thay đổi
-                            if (e.target.value === order.order_note) return;
-                            
-                            const targetOrders = isImport ? [...importOrders] : [...dbOrders];
-                            const updatedOrder = { ...targetOrders[absoluteIdx], order_note: e.target.value };
-                            targetOrders[absoluteIdx] = updatedOrder;
-                            
-                            if (isImport) {
-                              setImportOrders(targetOrders);
-                            } else {
-                              setDbOrders(targetOrders);
-                              // Auto-save ngầm xuống DB
-                              const payloadForApi = { ...updatedOrder, product_detail: JSON.stringify(updatedOrder.items), items: undefined };
-                              api.post('/partner/orders', { orders: [payloadForApi], target_shop_id: selectedShopId }).catch((err: any) => console.error(err));
-                            }
-                          }}
-                          className="w-full bg-yellow-50/50 border border-yellow-200/80 text-[10px] px-2 py-1.5 rounded-md outline-none focus:border-yellow-400 focus:bg-yellow-50 text-gray-700 placeholder-gray-400 transition-colors shadow-sm"
-                        />
-                      </div>
-
                     </div>
                   </td>
 
                   <td className="p-4 font-extrabold text-gray-900 text-right">${displayPrice}</td>
 
-                  {/* CỘT NÚT PAY MỚI */}
                   <td className="p-4 text-center align-middle">
                     {order.status === 'pending' && !isImport && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handlePaySingleOrder(order); }}
-                        className="bg-[#C29017] hover:bg-[#a67b13] text-white px-4 py-2 rounded-lg text-xs font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 w-full"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
-                           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
+                      <button onClick={(e) => { e.stopPropagation(); handlePaySingleOrder(order); }} className="bg-[#C29017] hover:bg-[#a67b13] text-white px-4 py-2 rounded-lg text-xs font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 w-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         Pay
                       </button>
                     )}
                   </td>
-                  
                 </tr>
               );
             })}

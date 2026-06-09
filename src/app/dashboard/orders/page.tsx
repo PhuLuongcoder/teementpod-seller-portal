@@ -740,38 +740,28 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             rawSku = row['SKU'] || '';
             tracking = row['Tracking']?.trim() || '';
 
-            // Tách Size và Color từ cột Variations ("SIZE:Blouse-L,Color:Yellow")
             const variations = row['Variations'] || '';
-            
-            // Tách các cụm thuộc tính bằng dấu phẩy
             const varParts = variations.split(',');
             
-            // Quét qua từng cụm để dò tìm Color và Size (Loại bỏ luôn dấu ngoặc kép thừa)
             varParts.forEach((part: string) => {
               const cleanPart = part.replace(/"/g, '').trim();
+              const lowerPart = cleanPart.toLowerCase();
               
-              if (cleanPart.toLowerCase().includes('size')) {
-                // Tách theo dấu hai chấm (:), lấy phần sau, xóa khoảng trắng thừa
-                rawSize = cleanPart.split(':')[1]?.trim() || rawSize;
-                
-                // (Tùy chọn) Etsy thường ghi "Blouse-L" hoặc "T-shirt-XL", có thể cắt bỏ để chỉ lấy chữ L, XL
-                if (rawSize.includes('-')) {
-                  const subParts = rawSize.split('-');
-                  rawSize = subParts[subParts.length - 1]?.trim() || rawSize;
+              if (lowerPart.includes('size') || lowerPart.includes('type') || lowerPart.includes('style')) {
+                let tempSize = cleanPart.split(':')[1]?.trim() || '';
+                if (tempSize.includes('-')) {
+                  tempSize = tempSize.split('-').pop()?.trim() || tempSize;
+                } else if (tempSize.includes(' ')) {
+                  tempSize = tempSize.split(' ').pop()?.trim() || tempSize;
                 }
+                if (tempSize) rawSize = tempSize;
               }
               
-              if (cleanPart.toLowerCase().includes('color')) {
-                rawColor = cleanPart.split(':')[1]?.trim() || rawColor;
+              if (lowerPart.includes('color') || lowerPart.includes('colour')) {
+                const tempColor = cleanPart.split(':')[1]?.trim();
+                if (tempColor) rawColor = tempColor;
               }
             });
-            // Regex bắt chữ SIZE: hoặc Size:
-            const sizeMatch = variations.match(/SIZE:\s*([^,]+)/i) || variations.match(/Size:\s*([^,]+)/i);
-            // Regex bắt chữ Color:
-            const colorMatch = variations.match(/Color:\s*([^,]+)/i);
-            
-            rawSize = sizeMatch ? sizeMatch[1].trim() : '';
-            rawColor = colorMatch ? colorMatch[1].trim() : '';
             
             // Etsy không có trường Type riêng lẻ, cắt tạm đoạn đầu của Item Name để làm Type
             rawType = row['Item Name'] ? row['Item Name'].split(',')[0].trim() : '';
@@ -1395,17 +1385,18 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               const isFullyMapped = order.items && order.items.length > 0 && order.items.every((item: any) => item.type && item.color && item.size);
               const displayPrice = isFullyMapped ? (order.order_price || 0) : 0;
               
+              // ĐÃ SỬA: Chỉ khai báo 1 lần duy nhất để tránh sập React
+              const uniqueRowKey = order.id || order.external_order_id || `import-row-${absoluteIdx}`;
+              
               // 1. TẠO HIỆU ỨNG SỌC VẰN (ZEBRA STRIPING) CHO CÁC DÒNG
               const isEven = idx % 2 === 0;
-              // Dòng chẵn màu trắng, dòng lẻ màu xám xanh siêu nhạt (slate-50) để dịu mắt
               const rowBg = isChecked ? 'bg-[#C29017]/10' : (isEven ? 'bg-white' : 'bg-slate-50'); 
               const hoverEffect = isChecked ? '' : 'hover:bg-blue-50/50';
-              const uniqueRowKey = order.id || order.external_order_id || `import-row-${absoluteIdx}`;
+
               return (
-                // 2. TĂNG ĐỘ ĐẬM CỦA ĐƯỜNG KẺ NGANG (border-b-2 border-gray-200)
                 <tr key={uniqueRowKey} className={`border-b-2 border-gray-200 transition duration-200 group ${rowBg} ${hoverEffect}`}>
                   
-                  {/* Cột Thao tác (Sticky) cũng phải đồng bộ màu nền với dòng để khi trượt ngang không bị lỗi hiển thị */}
+                  {/* CỘT THAO TÁC */}
                   <td className={`p-4 sticky left-0 z-10 border-r border-gray-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] transition-colors duration-200 ${rowBg} ${isChecked ? '' : 'group-hover:bg-blue-50/50'}`}>
                     <div className="flex items-center gap-3">
                       <input type="checkbox" checked={isChecked} onChange={(e) => handleSelectRow(e.target.checked, rowId)} className="w-4 h-4 cursor-pointer accent-[#C29017] rounded transition" />
@@ -1426,15 +1417,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   <td className="p-4">
                     <div className="flex items-center gap-1.5 group/orderid w-max">
                       <span className="font-bold text-gray-900">{order.external_order_id}</span>
-                      <button onClick={(e) => { e.stopPropagation(); copyToClipboard(order.external_order_id); }} className="text-gray-400 opacity-0 group-hover/orderid:opacity-100 transition-opacity hover:text-[#C29017]" title="Sao chép ID đơn hàng">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
-                      </button>
                     </div>
-                    {(order.order_type === 'reshipment' || (order.external_order_id && order.external_order_id.startsWith('RS-'))) && (
-                      <div className="mt-1">
-                        <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-purple-200 shadow-sm">Đơn Reship</span>
-                      </div>
-                    )}
                   </td>
 
                   <td className="p-4 text-xs text-gray-600 font-medium">
@@ -1448,27 +1431,17 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   </td>
 
                   <td className="px-4 py-3 text-xs">
-                    {order.tracking_number ? (
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1.5 group/track">
-                          <span className="font-bold text-[#C29017]">{order.tracking_number}</span>
-                          <button onClick={(e) => { e.stopPropagation(); copyToClipboard(order.tracking_number); }} className="text-gray-400 opacity-0 group-hover/track:opacity-100 transition-opacity hover:text-[#C29017]" title="Sao chép">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
-                          </button>
-                        </div>
-                        <span className="text-gray-400 font-medium">{order.shipping_carrier || 'USPS'}</span>
-                      </div>
-                    ) : ( <span className="text-gray-400 italic">Chưa có</span> )}
+                    {order.tracking_number ? <span className="font-bold text-[#C29017]">{order.tracking_number}</span> : <span className="text-gray-400 italic">Chưa có</span>}
                   </td>
 
                   <td className="p-4 font-semibold text-gray-800">{order.customer_name}</td>
 
                   {/* CỘT SKU (INLINE EDIT) & THUMBNAILS THIẾT KẾ */}
-                  {/* ĐÃ SỬA: Thêm relative và hover:z-[90] vào thẳng thẻ td này */}
                   <td className="p-4 align-top min-w-[200px] w-64 relative hover:z-[90]">
                     <div className="flex flex-col gap-3 py-1">
                       {order.items?.map((item: any, itemIdx: number) => (
-                        <div key={`${uniqueRowKey}-item-${itemIdx}`} className="w-full h-[125px] relative flex flex-col gap-2 justify-center">
+                        // ĐÃ SỬA: Gắn tag "sku" vào key để độc nhất vô nhị
+                        <div key={`${uniqueRowKey}-sku-${itemIdx}`} className="w-full h-[125px] relative flex flex-col gap-2 justify-center">
                           <div className="shadow-sm rounded-lg w-full">
                             <SkuCombobox
                               disabled={isRowLocked}
@@ -1484,7 +1457,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                   mockup: design.mockup_url,
                                   extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : undefined
                                 });
-                                notify(`Đã đồng bộ thiết kế SKU: ${design.sku}`);
                               }}
                             />
                           </div>
@@ -1528,7 +1500,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   <td className="p-4 align-top min-w-[250px] w-72">
                     <div className="flex flex-col gap-3 py-1">
                       {order.items?.map((item: any, itemIdx: number) => (
-                        <div key={`${uniqueRowKey}-item-${itemIdx}`} className="w-full h-[125px] flex flex-col gap-1.5 bg-white p-2 rounded-lg border border-gray-200 shadow-md justify-center">
+                        <div key={`${uniqueRowKey}-prod-${itemIdx}`} className="w-full h-[125px] flex flex-col gap-1.5 bg-white p-2 rounded-lg border border-gray-200 shadow-md justify-center">
                           
                           {/* 1./ HIỂN THỊ CHUỖI THÔNG TIN GỐC TỪ FILE */}
                           {item.original_string && (

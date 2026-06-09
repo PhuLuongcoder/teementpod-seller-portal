@@ -1529,7 +1529,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   <td className="p-4 align-top min-w-[250px] w-72">
                     <div className="flex flex-col gap-3 py-1">
                       {order.items?.map((item: any, itemIdx: number) => (
-                        // ĐÃ SỬA: Đổi bg-gray-50/80 thành bg-white và tăng độ đổ bóng shadow-md để thẻ luôn nổi bật trên mọi nền sọc vằn
                         <div key={itemIdx} className="w-full h-[125px] flex flex-col gap-1.5 bg-white p-2 rounded-lg border border-gray-200 shadow-md justify-center">
                           
                           {/* 1./ HIỂN THỊ CHUỖI THÔNG TIN GỐC TỪ FILE */}
@@ -1556,6 +1555,35 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                           </div>
                         </div>
                       ))}
+
+                      {/* 2./ MỚI: VÙNG GHI CHÚ ĐƠN HÀNG Ở DƯỚI CÙNG (AUTO-SAVE) */}
+                      <div className="mt-0.5">
+                        <input
+                          type="text"
+                          disabled={isRowLocked}
+                          placeholder="✏️ Ghi chú đơn hàng (nếu có)..."
+                          defaultValue={order.order_note || ''}
+                          onBlur={(e) => {
+                            // Chỉ lưu nếu giá trị thực sự bị thay đổi
+                            if (e.target.value === order.order_note) return;
+                            
+                            const targetOrders = isImport ? [...importOrders] : [...dbOrders];
+                            const updatedOrder = { ...targetOrders[absoluteIdx], order_note: e.target.value };
+                            targetOrders[absoluteIdx] = updatedOrder;
+                            
+                            if (isImport) {
+                              setImportOrders(targetOrders);
+                            } else {
+                              setDbOrders(targetOrders);
+                              // Auto-save ngầm xuống DB
+                              const payloadForApi = { ...updatedOrder, product_detail: JSON.stringify(updatedOrder.items), items: undefined };
+                              api.post('/partner/orders', { orders: [payloadForApi], target_shop_id: selectedShopId }).catch((err: any) => console.error(err));
+                            }
+                          }}
+                          className="w-full bg-yellow-50/50 border border-yellow-200/80 text-[10px] px-2 py-1.5 rounded-md outline-none focus:border-yellow-400 focus:bg-yellow-50 text-gray-700 placeholder-gray-400 transition-colors shadow-sm"
+                        />
+                      </div>
+
                     </div>
                   </td>
 

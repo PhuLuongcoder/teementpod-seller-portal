@@ -1386,10 +1386,18 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               const isFullyMapped = order.items && order.items.length > 0 && order.items.every((item: any) => item.type && item.color && item.size);
               const displayPrice = isFullyMapped ? (order.order_price || 0) : 0;
               
+              // 1. TẠO HIỆU ỨNG SỌC VẰN (ZEBRA STRIPING) CHO CÁC DÒNG
+              const isEven = idx % 2 === 0;
+              // Dòng chẵn màu trắng, dòng lẻ màu xám xanh siêu nhạt (slate-50) để dịu mắt
+              const rowBg = isChecked ? 'bg-[#C29017]/10' : (isEven ? 'bg-white' : 'bg-slate-50'); 
+              const hoverEffect = isChecked ? '' : 'hover:bg-blue-50/50';
+
               return (
-                <tr key={idx} className={`border-b border-gray-100 transition duration-200 group ${isChecked ? 'bg-[#C29017]/10' : 'hover:bg-gray-50 bg-white'}`}>
+                // 2. TĂNG ĐỘ ĐẬM CỦA ĐƯỜNG KẺ NGANG (border-b-2 border-gray-200)
+                <tr key={idx} className={`border-b-2 border-gray-200 transition duration-200 group ${rowBg} ${hoverEffect}`}>
                   
-                  <td className={`p-4 sticky left-0 z-10 border-r border-gray-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] transition-colors duration-200 ${isChecked ? 'bg-[#fdf9f1]' : 'bg-white group-hover:bg-gray-50'}`}>
+                  {/* Cột Thao tác (Sticky) cũng phải đồng bộ màu nền với dòng để khi trượt ngang không bị lỗi hiển thị */}
+                  <td className={`p-4 sticky left-0 z-10 border-r border-gray-200 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] transition-colors duration-200 ${rowBg} ${isChecked ? '' : 'group-hover:bg-blue-50/50'}`}>
                     <div className="flex items-center gap-3">
                       <input type="checkbox" checked={isChecked} onChange={(e) => handleSelectRow(e.target.checked, rowId)} className="w-4 h-4 cursor-pointer accent-[#C29017] rounded transition" />
                       
@@ -1450,7 +1458,8 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   <td className="p-4 align-top min-w-[200px] w-64">
                     <div className="flex flex-col gap-3 py-1">
                       {order.items?.map((item: any, itemIdx: number) => (
-                        <div key={itemIdx} className="w-full relative flex flex-col gap-2">
+                        // ĐÃ SỬA: Thêm h-[125px] và justify-center để ép chiều cao thẳng hàng với cột bên cạnh
+                        <div key={itemIdx} className="w-full h-[125px] relative flex flex-col gap-2 justify-center">
                           <div className="shadow-sm rounded-lg w-full">
                             <SkuCombobox
                               disabled={isRowLocked}
@@ -1510,11 +1519,12 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   <td className="p-4 align-top min-w-[250px] w-72">
                     <div className="flex flex-col gap-3 py-1">
                       {order.items?.map((item: any, itemIdx: number) => (
-                        <div key={itemIdx} className="w-full flex flex-col gap-1.5 bg-gray-50/80 p-2 rounded-lg border border-gray-200 shadow-sm">
+                        // ĐÃ SỬA: Đổi bg-gray-50/80 thành bg-white và tăng độ đổ bóng shadow-md để thẻ luôn nổi bật trên mọi nền sọc vằn
+                        <div key={itemIdx} className="w-full h-[125px] flex flex-col gap-1.5 bg-white p-2 rounded-lg border border-gray-200 shadow-md justify-center">
                           
                           {/* 1./ HIỂN THỊ CHUỖI THÔNG TIN GỐC TỪ FILE */}
                           {item.original_string && (
-                            <div className="flex items-center gap-1 bg-amber-100/50 border border-amber-200/60 px-1.5 py-1 rounded text-amber-700" title={item.original_string}>
+                            <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-1.5 py-1 rounded text-amber-700" title={item.original_string}>
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 shrink-0"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" /></svg>
                               <span className="text-[9px] font-bold truncate">{item.original_string}</span>
                             </div>

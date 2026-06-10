@@ -741,7 +741,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
           if (isEtsyFormat) {
             // ==========================================
-            // 1. MAPPING CHO FILE ETSY (ĐÃ DỌN SẠCH REGEX CŨ)
+            // 1. MAPPING CHO FILE ETSY (Bản cập nhật rào chắn)
             // ==========================================
             name = row['Ship Name']?.trim() || '';
             line1 = row['Ship Address1']?.trim() || '';
@@ -755,7 +755,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             rawSku = row['SKU'] || '';
             tracking = row['Tracking']?.trim() || '';
 
-            // Tách Size và Color từ cột Variations ("SIZE:Blouse-L,Color:Yellow" hoặc "Type:T-Shirt XL")
+            // Tách Size và Color từ cột Variations
             const variations = row['Variations'] || '';
             const varParts = variations.split(',');
             
@@ -763,6 +763,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               const cleanPart = part.replace(/"/g, '').trim();
               const lowerPart = cleanPart.toLowerCase();
               
+              // TÌM VÀ LỌC SIZE
               if (lowerPart.includes('size') || lowerPart.includes('type') || lowerPart.includes('style')) {
                 let tempSize = cleanPart.split(':')[1]?.trim() || '';
                 if (tempSize.includes('-')) {
@@ -770,17 +771,31 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                 } else if (tempSize.includes(' ')) {
                   tempSize = tempSize.split(' ').pop()?.trim() || tempSize;
                 }
-                if (tempSize) rawSize = tempSize;
+                
+                // YÊU CẦU 2: RÀO CHẮN TỪ KHÓA SIZE
+                if (tempSize) {
+                  const finalSize = tempSize.toUpperCase();
+                  // Lưu ý: Mình đã bổ sung thêm size "M" vào danh sách đề phòng bạn gõ thiếu ở trên
+                  const allowedSizes = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
+                  
+                  if (allowedSizes.includes(finalSize)) {
+                    rawSize = finalSize; // Nếu khớp chuẩn thì tự động map
+                  } else {
+                    rawSize = ''; // Nếu rác hoặc không nằm trong list trên thì bỏ trống để Seller tự chọn
+                  }
+                }
               }
               
+              // TÌM MÀU SẮC
               if (lowerPart.includes('color') || lowerPart.includes('colour')) {
                 const tempColor = cleanPart.split(':')[1]?.trim();
                 if (tempColor) rawColor = tempColor;
               }
             });
             
-            // Etsy không có trường Type riêng lẻ, cắt tạm đoạn đầu của Item Name để làm Type
-            rawType = row['Item Name'] ? row['Item Name'].split(',')[0].trim() : '';
+            // YÊU CẦU 1: XÓA TỰ ĐỘNG MAPPING PHÔI (TYPE)
+            // Ép giá trị Type bằng rỗng để bảng báo lỗi đỏ và tắt nút Pay, buộc Seller phải tự chọn phôi
+            rawType = ''; 
             
             designFront = ''; designBack = ''; mockup = '';
             

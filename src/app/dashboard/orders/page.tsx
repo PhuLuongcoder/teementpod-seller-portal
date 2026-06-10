@@ -157,7 +157,15 @@ interface SkuComboboxProps {
 
 const SkuCombobox = ({ value, options, disabled, onChange, onSelect }: SkuComboboxProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  
+  // ĐÃ SỬA: Tạo biến tạm để lưu trữ text người dùng đang gõ
+  const [localValue, setLocalValue] = useState(value || '');
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // ĐÃ SỬA: Luôn đồng bộ biến tạm với giá trị thật từ Database khi load trang
+  useEffect(() => {
+    setLocalValue(value || '');
+  }, [value]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -170,7 +178,7 @@ const SkuCombobox = ({ value, options, disabled, onChange, onSelect }: SkuCombob
   }, []);
 
   const filteredOptions = options.filter(opt => 
-    (opt.sku || '').toLowerCase().includes((value || '').toLowerCase())
+    (opt.sku || '').toLowerCase().includes((localValue || '').toLowerCase())
   );
 
   return (
@@ -178,10 +186,17 @@ const SkuCombobox = ({ value, options, disabled, onChange, onSelect }: SkuCombob
       <input
         type="text"
         disabled={disabled}
-        value={value}
+        value={localValue}
         onChange={(e) => {
-          onChange(e.target.value); // Vẫn cho phép gõ SKU mới bình thường
+          // ĐÃ SỬA: Khi gõ, chỉ lưu vào biến tạm cục bộ, KHÔNG GỌI API NỮA để tránh lag
+          setLocalValue(e.target.value); 
           setIsOpen(true);
+        }}
+        onBlur={() => {
+          // ĐÃ SỬA: Chỉ khi người dùng click chuột ra ngoài (VD: bấm nút Pay), mới gửi API 1 lần duy nhất!
+          if (localValue !== value) {
+            onChange(localValue);
+          }
         }}
         onFocus={() => setIsOpen(true)}
         placeholder="Nhập mã mới hoặc tìm SKU có sẵn..."

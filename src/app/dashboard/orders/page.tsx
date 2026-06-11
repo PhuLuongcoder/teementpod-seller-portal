@@ -241,6 +241,26 @@ export default function OrdersPage() {
   const [dbOrders, setDbOrders] = useState<any[]>([]);
   const [importOrders, setImportOrders] = useState<any[]>([]);
   const [podBlanks, setPodBlanks] = useState<any[]>([]);
+  const isOrderStrictlyValid = (order: any) => {
+    if (!order.items || order.items.length === 0) return false;
+    return order.items.every((it: any) => {
+      // 1. Phải có đủ dữ liệu cơ bản
+      if (!it.type || !it.color || !it.size) return false;
+      
+      // 2. Phôi (Type) bắt buộc phải tồn tại trong danh sách hệ thống
+      const blank = podBlanks.find(b => b.name === it.type);
+      if (!blank) return false;
+
+      // 3. (Tùy chọn nâng cao) Ép Size và Màu phải khớp chính xác với Phôi
+      try {
+        const validSizes = Array.isArray(blank.sizes) ? blank.sizes : (JSON.parse(blank.sizes || '[]'));
+        const sizeMatch = validSizes.some((s: string) => s.toLowerCase() === it.size.trim().toLowerCase());
+        if (!sizeMatch) return false; // Size "shirt 3XL" sẽ bị chặn đứng tại đây
+      } catch (e) { return false; }
+
+      return true;
+    });
+  };
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isAddingToPay, setIsAddingToPay] = useState(false);
@@ -426,10 +446,7 @@ export default function OrdersPage() {
     // 1. TÌM VÀ LỌC CÁC ĐƠN HỢP LỆ (Đã map đủ Type, Color, Size)
     const selectedOrderDetails = dbOrders.filter(order => selectedRows.includes(order.id));
     
-    const validOrders = selectedOrderDetails.filter(order => {
-      if (!order.items || order.items.length === 0) return false;
-      return order.items.every((item: any) => item.type && item.color && item.size);
-    });
+   const validPendingOrders = pendingOrders.filter((order: any) => isOrderStrictlyValid(order));
 
     const invalidCount = selectedRows.length - validOrders.length;
 
@@ -486,10 +503,7 @@ export default function OrdersPage() {
         return;
       }
 
-      const validPendingOrders = pendingOrders.filter((order: any) => {
-        if (!order.items || order.items.length === 0) return false;
-        return order.items.every((item: any) => item.type && item.color && item.size);
-      });
+      const validOrders = selectedOrderDetails.filter(order => isOrderStrictlyValid(order));
 
       const invalidCount = pendingOrders.length - validPendingOrders.length;
 
@@ -1288,7 +1302,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     };
 
     const handlePaySingleOrder = async (order: any) => {
-      const isValid = order.items && order.items.length > 0 && order.items.every((it: any) => it.type && it.color && it.size);
+      const isValid = isOrderStrictlyValid(order);
       if (!isValid) return alert("Đơn hàng chưa được cấu hình đủ Phôi/Màu/Size hợp lệ.");
       
       const isConfirmed = await confirm({ title: "Xác nhận thanh toán", message: `Bạn muốn thanh toán đơn ${order.external_order_id}?`, confirmText: "Thanh toán ngay" });
@@ -1382,7 +1396,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               else if (order.status === 'cancelled') { badgeColor = 'bg-red-50 text-red-700 border-red-200'; } 
               else if (order.status === 'pending') { statusLabel = 'Chờ thanh toán'; }
               
-              const isFullyMapped = order.items && order.items.length > 0 && order.items.every((item: any) => item.type && item.color && item.size);
+              const isFullyMapped = isOrderStrictlyValid(order);
               const displayPrice = isFullyMapped ? (order.order_price || 0) : 0;
               
               // CHỈ KHAI BÁO 1 LẦN DUY NHẤT ĐỂ TRÁNH SẬP WEB

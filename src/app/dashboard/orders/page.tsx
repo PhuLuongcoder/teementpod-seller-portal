@@ -446,7 +446,8 @@ export default function OrdersPage() {
     // 1. TÌM VÀ LỌC CÁC ĐƠN HỢP LỆ (Đã map đủ Type, Color, Size)
     const selectedOrderDetails = dbOrders.filter(order => selectedRows.includes(order.id));
     
-   const validPendingOrders = pendingOrders.filter((order: any) => isOrderStrictlyValid(order));
+    // ĐÃ SỬA: Đổi lại tên biến thành validOrders và lọc từ selectedOrderDetails
+    const validOrders = selectedOrderDetails.filter((order: any) => isOrderStrictlyValid(order));
 
     const invalidCount = selectedRows.length - validOrders.length;
 

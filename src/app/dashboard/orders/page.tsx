@@ -504,7 +504,7 @@ export default function OrdersPage() {
         return;
       }
 
-      const validOrders = selectedOrderDetails.filter(order => isOrderStrictlyValid(order));
+      const validPendingOrders = pendingOrders.filter((order: any) => isOrderStrictlyValid(order));
 
       const invalidCount = pendingOrders.length - validPendingOrders.length;
 

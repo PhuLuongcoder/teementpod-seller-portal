@@ -2225,29 +2225,53 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         {/* Mặt Sau */}
                         <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-purple-200">
                           <div className="relative group/img shrink-0">
-                            <div 
-                              className="w-20 h-20 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300"
-                              style={{ backgroundColor: getStandardColor(item.color) }}
-                            >
-                              {item.design_back ? (
-                                <img 
-                                  src={convertGoogleDriveUrl(item.design_front)} 
-                                  alt="Back" 
-                                  className="w-full h-full object-contain p-1" 
-                                  onError={(e) => { 
-                                    e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
-                                    e.currentTarget.onerror = null; // Chống lặp vô tận 100%
-                                  }} 
-                                />
-                              ) : <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Back</span>}
-                            </div>
-                            {item.design_back && (
-                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                                <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
-                                  <img src={convertGoogleDriveUrl(item.design_back)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
-                                </div>
-                              </div>
-                            )}
+                            {(() => {
+                              const isValidUrl = item.design_back && item.design_back.trim().toLowerCase().startsWith('http');
+                              const isNote = item.design_back && !isValidUrl;
+
+                              return (
+                                <>
+                                  <div 
+                                    className="w-20 h-20 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300 relative"
+                                    style={{ backgroundColor: getStandardColor(item.color) }}
+                                  >
+                                    {isValidUrl ? (
+                                      <img 
+                                        src={convertGoogleDriveUrl(item.design_back)} 
+                                        alt="Back" 
+                                        className="w-full h-full object-contain p-1" 
+                                        onError={(e) => { 
+                                          e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                          e.currentTarget.onerror = null; 
+                                        }} 
+                                      />
+                                    ) : isNote ? (
+                                      <div className="flex flex-col items-center justify-center p-2 w-full h-full bg-yellow-50/90 border-b-[3px] border-yellow-300">
+                                        <span className="text-[20px]">📝</span>
+                                        <span className="text-[9px] font-bold text-gray-700 leading-tight text-center line-clamp-2 w-full mt-1 px-1">{item.design_back}</span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Back</span>
+                                    )}
+                                  </div>
+
+                                  {isValidUrl ? (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                      <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
+                                        <img src={convertGoogleDriveUrl(item.design_back)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} onError={(e) => { e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; e.currentTarget.onerror = null; }} />
+                                      </div>
+                                    </div>
+                                  ) : isNote && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                      <div className="bg-yellow-50 p-3 rounded-xl shadow-xl ring-1 ring-yellow-300 min-w-[150px] max-w-[250px]">
+                                        <div className="text-[11px] font-bold text-yellow-800 mb-1.5 uppercase border-b border-yellow-200 pb-1">Ghi chú (Back):</div>
+                                        <p className="text-[12px] text-gray-800 whitespace-pre-wrap">{item.design_back}</p>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                           <div className="flex-1 flex flex-col justify-center gap-1.5">
                             <label className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Mặt Sau</label>
@@ -2258,32 +2282,53 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         {/* Mockup */}
                         <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-teal-200">
                           <div className="relative group/img shrink-0">
-                            <div 
-                              className="w-20 h-20 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300"
-                              style={{ backgroundColor: getStandardColor(item.color) }}
-                            >
-                              {item.mockup ? (
-                                <img 
-                                  src={convertGoogleDriveUrl(item.mockup)} 
-                                  alt="Mockup" 
-                                  className="w-full h-full object-cover" 
-                                  onError={(e) => { 
-                                    e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
-                                    e.currentTarget.onerror = null; 
-                                  }} 
-                                />
-                              ) : <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Mockup</span>}
-                            </div>
-                            {item.mockup && (
-                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                                <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
-                                  <img src={convertGoogleDriveUrl(item.mockup)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} onError={(e) => { 
-                                                                                                                                                                                                                                          e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
-                                                                                                                                                                                                                                          e.currentTarget.onerror = null; 
-                                                                                                                                                                                                                                        }}/>
-                                </div>
-                              </div>
-                            )}
+                            {(() => {
+                              const isValidUrl = item.mockup && item.mockup.trim().toLowerCase().startsWith('http');
+                              const isNote = item.mockup && !isValidUrl;
+
+                              return (
+                                <>
+                                  <div 
+                                    className="w-20 h-20 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300 relative"
+                                    style={{ backgroundColor: getStandardColor(item.color) }}
+                                  >
+                                    {isValidUrl ? (
+                                      <img 
+                                        src={convertGoogleDriveUrl(item.mockup)} 
+                                        alt="Mockup" 
+                                        className="w-full h-full object-cover" 
+                                        onError={(e) => { 
+                                          e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                          e.currentTarget.onerror = null; 
+                                        }} 
+                                      />
+                                    ) : isNote ? (
+                                      <div className="flex flex-col items-center justify-center p-2 w-full h-full bg-yellow-50/90 border-b-[3px] border-yellow-300">
+                                        <span className="text-[20px]">📝</span>
+                                        <span className="text-[9px] font-bold text-gray-700 leading-tight text-center line-clamp-2 w-full mt-1 px-1">{item.mockup}</span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Mockup</span>
+                                    )}
+                                  </div>
+
+                                  {isValidUrl ? (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                      <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
+                                        <img src={convertGoogleDriveUrl(item.mockup)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} onError={(e) => { e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; e.currentTarget.onerror = null; }} />
+                                      </div>
+                                    </div>
+                                  ) : isNote && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                      <div className="bg-yellow-50 p-3 rounded-xl shadow-xl ring-1 ring-yellow-300 min-w-[150px] max-w-[250px]">
+                                        <div className="text-[11px] font-bold text-yellow-800 mb-1.5 uppercase border-b border-yellow-200 pb-1">Ghi chú (Mockup):</div>
+                                        <p className="text-[12px] text-gray-800 whitespace-pre-wrap">{item.mockup}</p>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                           <div className="flex-1 flex flex-col justify-center gap-1.5">
                             <label className="text-[10px] text-teal-600 font-bold uppercase tracking-wider">Mockup SP</label>
@@ -2307,33 +2352,50 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                             {item.extra_print_areas.map((area: any, aIdx: number) => (
                               <div key={aIdx} className="flex gap-3 bg-gray-50/80 p-3 rounded-2xl ring-1 ring-gray-100 relative group/extra transition-all hover:bg-white hover:shadow-md">
                                 <div className="relative group/img shrink-0">
-                                  <div 
-                                    className="w-12 h-12 rounded-lg shadow-sm flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300"
-                                    style={{ backgroundColor: getStandardColor(item.color) }}
-                                  >
-                                    {area.url ? (
-                                      <img 
-                                        src={convertGoogleDriveUrl(area.url)} 
-                                        className="w-full h-full object-contain p-1" 
-                                        onError={(e) => { 
-                                          e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
-                                          e.currentTarget.onerror = null; 
-                                        }} 
-                                      />
-                                    ) : (
-                                      <span className="text-[8px] font-bold text-gray-600 bg-white/80 backdrop-blur-sm px-1 py-0.5 rounded shadow-sm">No Img</span>
-                                    )}
-                                  </div>
-                                  {area.url && (
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                                      <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
-                                        <img src={convertGoogleDriveUrl(area.url)} className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} onError={(e) => { 
-                                                                                                                                                                                                                                e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
-                                                                                                                                                                                                                                e.currentTarget.onerror = null; 
-                                                                                                                                                                                                                              }} />
-                                      </div>
-                                    </div>
-                                  )}
+                                  {(() => {
+                                    const isValidUrl = area.url && area.url.trim().toLowerCase().startsWith('http');
+                                    const isNote = area.url && !isValidUrl;
+
+                                    return (
+                                      <>
+                                        <div 
+                                          className="w-12 h-12 rounded-lg shadow-sm flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300 relative"
+                                          style={{ backgroundColor: getStandardColor(item.color) }}
+                                        >
+                                          {isValidUrl ? (
+                                            <img 
+                                              src={convertGoogleDriveUrl(area.url)} 
+                                              className="w-full h-full object-contain p-1" 
+                                              onError={(e) => { 
+                                                e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                                e.currentTarget.onerror = null; 
+                                              }} 
+                                            />
+                                          ) : isNote ? (
+                                            <div className="flex flex-col items-center justify-center w-full h-full bg-yellow-50/90 border-b-2 border-yellow-300">
+                                              <span className="text-[12px]">📝</span>
+                                            </div>
+                                          ) : (
+                                            <span className="text-[8px] font-bold text-gray-600 bg-white/80 backdrop-blur-sm px-1 py-0.5 rounded shadow-sm">No Img</span>
+                                          )}
+                                        </div>
+                                        {isValidUrl ? (
+                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                            <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
+                                              <img src={convertGoogleDriveUrl(area.url)} className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} onError={(e) => { e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; e.currentTarget.onerror = null; }} />
+                                            </div>
+                                          </div>
+                                        ) : isNote && (
+                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                            <div className="bg-yellow-50 p-2.5 rounded-xl shadow-xl ring-1 ring-yellow-300 min-w-[120px]">
+                                              <div className="text-[10px] font-bold text-yellow-800 mb-1 uppercase border-b border-yellow-200 pb-1">Ghi chú:</div>
+                                              <p className="text-[11px] text-gray-800 whitespace-pre-wrap">{area.url}</p>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                                 <div className="flex-1 flex flex-col justify-center gap-1.5">
                                   <input disabled={isReadOnly} placeholder="Tên (VD: Left Sleeve)" value={area.name || ''} onChange={(e) => { const n = [...editForm.items]; n[index].extra_print_areas[aIdx].name = e.target.value; setEditForm({ ...editForm, items: n }); }} className="w-full bg-white ring-1 ring-gray-200 p-1.5 rounded-md text-[10px] font-bold text-gray-800 outline-none focus:ring-1 focus:ring-gray-400" />

@@ -1572,7 +1572,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                 key={`back-${uniqueRowKey}-${itemIdx}-${item.design_back || 'empty'}`}
                                 type="text"
                                 disabled={isRowLocked}
-                                placeholder="🔗 Link Design Mặt Sau (Nếu có)..."
+                                placeholder="Link Design Mặt Sau (Nếu có)..."
                                 defaultValue={item.design_back || ''}
                                 onBlur={(e) => {
                                   if (e.target.value === item.design_back) return;

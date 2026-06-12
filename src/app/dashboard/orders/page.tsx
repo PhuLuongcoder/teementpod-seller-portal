@@ -2172,7 +2172,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                 />
                               ) : <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Front</span>}
                             </div>
-                            {item.design_front && !imageError[`front-${index}`] && (
+                            {item.design_front &&
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
                                 <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
                                   <img src={convertGoogleDriveUrl(item.design_front)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
@@ -2205,7 +2205,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                 />
                               ) : <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Back</span>}
                             </div>
-                            {item.design_back && !imageError[`back-${index}`] && (
+                            {item.design_back && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
                                 <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
                                   <img src={convertGoogleDriveUrl(item.design_back)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
@@ -2238,10 +2238,13 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                 />
                               ) : <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Mockup</span>}
                             </div>
-                            {item.mockup && !imageError[`mockup-${index}`] && (
+                            {item.mockup && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
                                 <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
-                                  <img src={convertGoogleDriveUrl(item.mockup)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
+                                  <img src={convertGoogleDriveUrl(item.mockup)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} onError={(e) => { 
+                                                                                                                                                                                                                                          e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                                                                                                                                                                                                                          e.currentTarget.onerror = null; 
+                                                                                                                                                                                                                                        }}/>
                                 </div>
                               </div>
                             )}
@@ -2285,10 +2288,13 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                       <span className="text-[8px] font-bold text-gray-600 bg-white/80 backdrop-blur-sm px-1 py-0.5 rounded shadow-sm">No Img</span>
                                     )}
                                   </div>
-                                  {area.url && !imageError[`extra-${index}-${aIdx}`] && (
+                                  {area.url && (
                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
                                       <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
-                                        <img src={convertGoogleDriveUrl(area.url)} className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
+                                        <img src={convertGoogleDriveUrl(area.url)} className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} onError={(e) => { 
+                                                                                                                                                                                                                                e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                                                                                                                                                                                                                e.currentTarget.onerror = null; 
+                                                                                                                                                                                                                              }} />
                                       </div>
                                     </div>
                                   )}

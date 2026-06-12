@@ -7,6 +7,19 @@ import { useShop } from '@/context/ShopContext';
 import { SquareTwoStack } from "@medusajs/icons"
 import { useConfirm } from '@/context/ConfirmContext';
 
+// Helper kiểm tra URL hợp lệ khắt khe để tránh lỗi 404 relative path
+const isValidImageUrl = (url?: string): boolean => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed.toLowerCase().startsWith('http')) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 // Giao diện Search + Dropdownbox
 interface SearchableDropdownProps {
   value: string;
@@ -32,7 +45,6 @@ const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }:
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fix lỗi crash: dùng optional chaining thay vì gọi thẳng .toLowerCase()
   const filteredOptions = options.filter((opt: any) => {
     const name = (opt.name || '').toLowerCase();
     const sku  = (opt.sku  || '').toLowerCase();
@@ -53,7 +65,6 @@ const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }:
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
-      {/* SEARCH BOX — luôn hiển thị, tách biệt hoàn toàn */}
       <div className="flex items-center gap-2">
         <div
           className={`flex-1 flex items-center gap-2 h-9 px-2.5 border rounded-lg transition-all
@@ -92,7 +103,6 @@ const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }:
           )}
         </div>
 
-        {/* PILL — hiện tên đang chọn, tách biệt khỏi search box */}
         {value && (
           <div className="flex items-center gap-1.5 h-9 px-2.5 border border-gray-200 rounded-lg bg-gray-50 text-xs text-gray-500 shrink-0 max-w-[160px]">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
@@ -103,7 +113,6 @@ const SearchableDropdown = ({ value, options, onChange, disabled, placeholder }:
         )}
       </div>
 
-      {/* RESULTS PANEL — chỉ chứa danh sách, không lẫn search box */}
       {isOpen && (
         <div className="absolute z-[999] w-full mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden flex flex-col">
           <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
@@ -157,12 +166,9 @@ interface SkuComboboxProps {
 
 const SkuCombobox = ({ value, options, disabled, onChange, onSelect }: SkuComboboxProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  
-  // ĐÃ SỬA: Tạo biến tạm để lưu trữ text người dùng đang gõ
   const [localValue, setLocalValue] = useState(value || '');
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // ĐÃ SỬA: Luôn đồng bộ biến tạm với giá trị thật từ Database khi load trang
   useEffect(() => {
     setLocalValue(value || '');
   }, [value]);
@@ -188,12 +194,10 @@ const SkuCombobox = ({ value, options, disabled, onChange, onSelect }: SkuCombob
         disabled={disabled}
         value={localValue}
         onChange={(e) => {
-          // ĐÃ SỬA: Khi gõ, chỉ lưu vào biến tạm cục bộ, KHÔNG GỌI API NỮA để tránh lag
           setLocalValue(e.target.value); 
           setIsOpen(true);
         }}
         onBlur={() => {
-          // ĐÃ SỬA: Chỉ khi người dùng click chuột ra ngoài (VD: bấm nút Pay), mới gửi API 1 lần duy nhất!
           if (localValue !== value) {
             onChange(localValue);
           }
@@ -203,14 +207,13 @@ const SkuCombobox = ({ value, options, disabled, onChange, onSelect }: SkuCombob
         className="w-full border p-1.5 px-3 rounded-lg text-xs bg-gray-50 outline-none focus:border-[#C29017] disabled:bg-gray-100 transition-colors"
       />
       
-      {/* Khung gợi ý thiết kế có sẵn */}
       {isOpen && !disabled && filteredOptions.length > 0 && (
         <div className="absolute z-[999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
           {filteredOptions.map((opt) => (
             <div
               key={opt.id}
               onMouseDown={(e) => {
-                e.preventDefault(); // Chặn mất focus để onClick hoạt động mượt mà
+                e.preventDefault(); 
                 onSelect(opt);
                 setIsOpen(false);
               }}
@@ -229,6 +232,7 @@ const SkuCombobox = ({ value, options, disabled, onChange, onSelect }: SkuCombob
     </div>
   );
 };
+
 export default function OrdersPage() {
   const { confirm, notify } = useConfirm();
   const { selectedShopId } = useShop();
@@ -241,34 +245,27 @@ export default function OrdersPage() {
   const [dbOrders, setDbOrders] = useState<any[]>([]);
   const [importOrders, setImportOrders] = useState<any[]>([]);
   const [podBlanks, setPodBlanks] = useState<any[]>([]);
+  
   const isOrderStrictlyValid = (order: any) => {
     if (!order.items || order.items.length === 0) return false;
     return order.items.every((it: any) => {
-      // 1. Phải có đủ dữ liệu cơ bản
       if (!it.type || !it.color || !it.size) return false;
-      
-      // 2. Phôi (Type) bắt buộc phải tồn tại trong danh sách hệ thống
       const blank = podBlanks.find(b => b.name === it.type);
       if (!blank) return false;
-
-      // 3. (Tùy chọn nâng cao) Ép Size và Màu phải khớp chính xác với Phôi
       try {
         const validSizes = Array.isArray(blank.sizes) ? blank.sizes : (JSON.parse(blank.sizes || '[]'));
         const sizeMatch = validSizes.some((s: string) => s.toLowerCase() === it.size.trim().toLowerCase());
-        if (!sizeMatch) return false; // Size "shirt 3XL" sẽ bị chặn đứng tại đây
+        if (!sizeMatch) return false;
       } catch (e) { return false; }
-
       return true;
     });
   };
+
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isAddingToPay, setIsAddingToPay] = useState(false);
-  
   const [message, setMessage] = useState('');
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
-  
-  // Bộ lọc
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [startDate, setStartDate] = useState('');
@@ -276,50 +273,39 @@ export default function OrdersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  //Nhận diện màu
+
   const getStandardColor = (colorName?: string) => {
-    if (!colorName) return '#f9fafb'; // Mặc định là màu xám nhạt (gray-50)
+    if (!colorName) return '#f9fafb';
     const name = colorName.toLowerCase().trim();
     const colorMap: Record<string, string> = {
-      // Các màu cơ bản đặc thù
       'sport grey': '#d1d5db', 'dark heather': '#374151', 'heather navy': '#312e81',
       'light pink': '#fbcfe8', 'light blue': '#bfdbfe', 'navy': '#1e3a8a',
       'royal': '#1d4ed8', 'maroon': '#7f1d1d', 'forest green': '#064e3b',
       'charcoal': '#3f3f46', 'sand': '#e5e5cb', 'ash': '#e2e8f0',
       'irish green': '#16a34a', 'carolina blue': '#7dd3fc', 'heliconia': '#d946ef',
       'sapphire': '#0284c7', 'kelly green': '#22c55e', 'daisy': '#fde047',
-      
-      // MỚI THÊM: Các màu hệ Mineral (Wash/Vintage)
-      'mineral black': '#363636',  // Đen phai sẫm
-      'mineral navy': '#2c3e50',   // Xanh than phai
-      'mineral silver': '#b0b3b8', // Bạc phai
-      'mineral gray': '#696969',   // Xám phai
-      'mineral purple': '#6d5b7b'  // Tím phai cổ điển
+      'mineral black': '#363636', 'mineral navy': '#2c3e50', 'mineral silver': '#b0b3b8', 
+      'mineral gray': '#696969', 'mineral purple': '#6d5b7b'
     };
-    
-    // Nếu có trong từ điển thì lấy mã Hex, nếu không thì trả về tên gốc (CSS tự hiểu các màu chuẩn như 'black', 'red')
     return colorMap[name] || colorName;
   };
-  // Import tab pagination
+
   const [importCurrentPage, setImportCurrentPage] = useState(1);
   const IMPORT_PAGE_SIZE = 20;
-  //Export
   const [isExporting, setIsExporting] = useState(false);
   
-  // Modal State
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editSource, setEditSource] = useState<'db' | 'import'>('import');
   const [editForm, setEditForm] = useState<any>(null);
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [specialPrintsForm, setSpecialPrintsForm] = useState<{name: string, url: string}[]>([]);
   const [mockupsForm, setMockupsForm] = useState<{name: string, url: string}[]>([]);
-  // State phục vụ popup Hỗ trợ / Khiếu nại
+  
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [supportType, setSupportType] = useState<'resent' | 'refund'>('resent');
   const [supportReason, setSupportReason] = useState('');
   const [supportImage, setSupportImage] = useState('');
   const [isSubmittingSupport, setIsSubmittingSupport] = useState(false);
-  // THÊM: State theo dõi trạng thái đồng bộ SKU
   const [isSyncingSKU, setIsSyncingSKU] = useState<number | null>(null);
 
   // ==========================================
@@ -333,24 +319,21 @@ export default function OrdersPage() {
     const fetchPodBlanks = async () => {
       try {
         const res = await api.get('/partner/pod-blanks');
-        
-        // THÊM res.data?.catalog VÀO ĐÂY
         const fetchedData = res.data?.catalog || res.data?.pod_blanks || res.data?.podBlanks || res.data?.data;
-        
-        // CHỐT CHẶN AN TOÀN: Đảm bảo biến podBlanks luôn luôn là một Array (Mảng)
         setPodBlanks(Array.isArray(fetchedData) ? fetchedData : []);
       } catch (error) {
         console.error("Lỗi lấy danh sách Phôi:", error);
-        setPodBlanks([]); // Ép về mảng rỗng nếu API lỗi để tránh sập trang
+        setPodBlanks([]); 
       }
     };
     if (selectedShopId) fetchPodBlanks();
   }, [selectedShopId]);
+
   useEffect(() => {
     const fetchDesigns = async () => {
       try {
         const res = await api.get('/partner/designs', { 
-          params: { shop_id: selectedShopId, limit: 2000 } // Tải tối đa 2000 design gần nhất
+          params: { shop_id: selectedShopId, limit: 2000 } 
         });
         setSellerDesigns(res.data.designs || []);
       } catch (error) {
@@ -359,6 +342,7 @@ export default function OrdersPage() {
     };
     if (selectedShopId) fetchDesigns();
   }, [selectedShopId]);
+
   const handleBulkDeleteImport = async () => {
     const isConfirmed = await confirm({
       title: "Xóa danh sách Import",
@@ -371,7 +355,6 @@ export default function OrdersPage() {
     const remaining = importOrders.filter((_, idx) => !selectedIndices.has(idx));
     setImportOrders(remaining);
     setSelectedRows([]);
-    // Adjust page after bulk delete
     const newTotalPages = Math.max(1, Math.ceil(remaining.length / IMPORT_PAGE_SIZE));
     setImportCurrentPage(prev => Math.min(prev, newTotalPages));
   };
@@ -401,6 +384,7 @@ export default function OrdersPage() {
       setIsSubmittingSupport(false);
     }
   };
+
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -411,7 +395,6 @@ export default function OrdersPage() {
   };
 
   const handleBulkActionDB = async (action: 'cancel' | 'archive') => {
-    // THÊM KIỂM TRA CHẶN: Nếu có đơn đã vào chu trình sản xuất hoặc giao hàng
     const invalidOrders = selectedRows.filter(id => {
       const order = dbOrders.find(o => o.id === id);
       return order && ['processing', 'in_transit', 'done', 'cancelled'].includes(order.status);
@@ -443,12 +426,8 @@ export default function OrdersPage() {
   const handlePayOrders = async () => {
     if (selectedRows.length === 0) return;
 
-    // 1. TÌM VÀ LỌC CÁC ĐƠN HỢP LỆ (Đã map đủ Type, Color, Size)
     const selectedOrderDetails = dbOrders.filter(order => selectedRows.includes(order.id));
-    
-    // ĐÃ SỬA: Đổi lại tên biến thành validOrders và lọc từ selectedOrderDetails
     const validOrders = selectedOrderDetails.filter((order: any) => isOrderStrictlyValid(order));
-
     const invalidCount = selectedRows.length - validOrders.length;
 
     if (validOrders.length === 0) {
@@ -505,7 +484,6 @@ export default function OrdersPage() {
       }
 
       const validPendingOrders = pendingOrders.filter((order: any) => isOrderStrictlyValid(order));
-
       const invalidCount = pendingOrders.length - validPendingOrders.length;
 
       if (validPendingOrders.length === 0) {
@@ -534,21 +512,14 @@ export default function OrdersPage() {
 
   const convertGoogleDriveUrl = (url?: string): string => {
     if (!url) return '';
-
-    // file/d/
     const fileMatch = url.match(/\/file\/d\/([^\/]+)/);
-
     if (fileMatch?.[1]) {
       return `https://drive.google.com/thumbnail?id=${fileMatch[1]}&sz=w1000`;
     }
-
-    // open?id=
     const openMatch = url.match(/[?&]id=([^&]+)/);
-
     if (openMatch?.[1]) {
       return `https://drive.google.com/thumbnail?id=${openMatch[1]}&sz=w1000`;
     }
-
     return url;
   };
 
@@ -571,7 +542,6 @@ export default function OrdersPage() {
       }
 
       const response = await api.get('/partner/orders', { params });
-      // ĐÃ BỌC THÉP: Nếu API lỗi hoặc thiếu dữ liệu, ép nó về mảng rỗng [] thay vì undefined
       setDbOrders(response.data?.orders || []);
       setTotalPages(response.data?.totalPages || 1);
       setTotalCount(response.data?.count || 0);
@@ -669,7 +639,6 @@ export default function OrdersPage() {
           }];
         }
         items.forEach(item => {
-          // Bóc tách mảng extra_print_areas thành chuỗi string
           const extraPrintStr = (item.extra_print_areas || [])
             .filter((a: any) => a.name || a.url)
             .map((a: any) => `${a.name}: ${a.url}`)
@@ -719,15 +688,15 @@ export default function OrdersPage() {
   };
 
   const sanitizeText = (text: string | number | null | undefined) => {
-  if (!text) return '';
-  return text
-    .toString()
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-};
+    if (!text) return '';
+    return text
+      .toString()
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
 
-const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !selectedShopId) return;
     
@@ -737,18 +706,13 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       skipEmptyLines: true,
       complete: (results) => {
         const ordersMap = new Map();
-        
-        // Cập nhật: Ép kiểu results.data về mảng các object (any[]) để vượt qua bài kiểm tra của TypeScript
         const parsedData = results.data as any[];
-
-        // NHẬN DIỆN THÔNG MINH: Nếu file có cột 'Ship Name', đó chắc chắn là file xuất từ Etsy
         const isEtsyFormat = parsedData.length > 0 && parsedData[0].hasOwnProperty('Ship Name');
 
         parsedData.forEach((row: any) => {
           const orderId = sanitizeText(row['Order ID']);
-          if (!orderId) return; // Nếu dòng không có mã đơn thì bỏ qua
+          if (!orderId) return;
 
-          // Các biến tạm để chứa dữ liệu chung sau khi phân loại
           let rawType = '', rawColor = '', rawSize = '', rawQuantity = 1, rawSku = '';
           let name = '', line1 = '', line2 = '', city = '', region = '', zip = '', country = 'US';
           let designFront = '', designBack = '', mockup = '';
@@ -756,9 +720,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
           let originalString = '';
 
           if (isEtsyFormat) {
-            // ==========================================
-            // 1. MAPPING CHO FILE ETSY (Bản cập nhật rào chắn)
-            // ==========================================
             name = row['Ship Name']?.trim() || '';
             line1 = row['Ship Address1']?.trim() || '';
             line2 = row['Ship Address2']?.trim() || '';
@@ -771,7 +732,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             rawSku = row['SKU'] || '';
             tracking = row['Tracking']?.trim() || '';
 
-            // Tách Size và Color từ cột Variations
             const variations = row['Variations'] || '';
             const varParts = variations.split(',');
             
@@ -779,7 +739,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               const cleanPart = part.replace(/"/g, '').trim();
               const lowerPart = cleanPart.toLowerCase();
               
-              // TÌM VÀ LỌC SIZE
               if (lowerPart.includes('size') || lowerPart.includes('type') || lowerPart.includes('style')) {
                 let tempSize = cleanPart.split(':')[1]?.trim() || '';
                 if (tempSize.includes('-')) {
@@ -788,31 +747,24 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   tempSize = tempSize.split(' ').pop()?.trim() || tempSize;
                 }
                 
-                // YÊU CẦU 2: RÀO CHẮN TỪ KHÓA SIZE
                 if (tempSize) {
                   const finalSize = tempSize.toUpperCase();
-                  // Lưu ý: Mình đã bổ sung thêm size "M" vào danh sách đề phòng bạn gõ thiếu ở trên
                   const allowedSizes = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
-                  
                   if (allowedSizes.includes(finalSize)) {
-                    rawSize = finalSize; // Nếu khớp chuẩn thì tự động map
+                    rawSize = finalSize; 
                   } else {
-                    rawSize = ''; // Nếu rác hoặc không nằm trong list trên thì bỏ trống để Seller tự chọn
+                    rawSize = ''; 
                   }
                 }
               }
               
-              // TÌM MÀU SẮC
               if (lowerPart.includes('color') || lowerPart.includes('colour')) {
                 const tempColor = cleanPart.split(':')[1]?.trim();
                 if (tempColor) rawColor = tempColor;
               }
             });
             
-            // YÊU CẦU 1: XÓA TỰ ĐỘNG MAPPING PHÔI (TYPE)
-            // Ép giá trị Type bằng rỗng để bảng báo lỗi đỏ và tắt nút Pay, buộc Seller phải tự chọn phôi
             rawType = ''; 
-            
             designFront = ''; designBack = ''; mockup = '';
             
             let itemName = row['Item Name'] || '';
@@ -820,16 +772,10 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             const shortItemName = itemName.split(',')[0].trim();
             
             let cleanVariations = variations.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
-
-            // Chỉ hiển thị thông tin Variations, bỏ qua Tên sản phẩm dài dòng
             originalString = cleanVariations ? cleanVariations.trim() : shortItemName;
             
           } else {
-            // ==========================================
-            // 2. MAPPING CHO FILE TRUYỀN THỐNG (Team Mr.Khoa)
-            // ==========================================
             const keys = Object.keys(row);
-            // Tìm cột Address line 2 vì CSV hay bị lỗi thụt dòng chữ 'line 2'
             const addr2Key = keys.find(k => k.toLowerCase().includes('line 2')) || 'Address line 2';
             
             name = row['Name']?.trim() || '';
@@ -838,7 +784,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             city = row['City']?.trim() || '';
             region = row['Region']?.trim() || '';
             zip = row['Zip']?.trim() || '';
-            country = row['Country']?.trim() || 'US'; // Mặc định US vì file Khoa không có cột Country
+            country = row['Country']?.trim() || 'US';
             
             rawType = row['Type'] || '';
             rawColor = row['Color'] || '';
@@ -854,13 +800,8 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
             originalString = fullType 
               ? `Hệ thống: ${fullType}` 
               : `Loại: ${rawType}, Màu: ${rawColor}, Size: ${rawSize}`;
-            
           }
           
-          // ==========================================
-          // 3. ĐÓNG GÓI CHUẨN HÓA VÀ GỘP ĐƠN
-          // ==========================================
-          // Áp dụng hàm sanitizeText cho các trường quan trọng (giữ nguyên logic gốc)
           const newItem = {
             sku: sanitizeText(rawSku),
             type: sanitizeText(rawType),  
@@ -875,11 +816,9 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
           };
 
           if (ordersMap.has(orderId)) {
-            // Đã có mã đơn này -> Nhét thêm sản phẩm vào mảng items (Gộp đơn)
             const existingOrder = ordersMap.get(orderId);
             existingOrder.items.push(newItem);
           } else {
-            // Chưa có -> Tạo mới order
             ordersMap.set(orderId, {
               external_order_id: orderId,
               tracking_number: sanitizeText(tracking),
@@ -887,18 +826,13 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               customer_name: sanitizeText(name),
               customer_email: '', customer_phone: '',
               shipping_address: {
-                line_1: line1, 
-                line_2: line2,
-                city: city, 
-                region: region, 
-                zip: zip, 
-                country: country
+                line_1: line1, line_2: line2, city: city, region: region, zip: zip, country: country
               },
               items: [newItem],
               product_type: sanitizeText(rawType), 
               order_price: 0, 
               order_note: '', 
-              status: 'pending' // Chờ update design
+              status: 'pending'
             });
           }
         });
@@ -918,9 +852,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     event.target.value = '';
   };
 
-  // ==========================================
-  // LOGIC ĐỒNG BỘ SKU 
-  // ==========================================
   const handleSyncSKU = async (itemIndex: number, sku: string) => {
     if (!sku.trim() || !selectedShopId) return;
     setIsSyncingSKU(itemIndex);
@@ -935,7 +866,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
       if (exactMatch) {
         const newItems = [...editForm.items];
-        // Tự động kéo luôn các vùng in tùy chọn từ thư viện
         const libraryExtraAreas = exactMatch.extra_print_areas || [];
 
         newItems[itemIndex] = {
@@ -1013,7 +943,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     };
     let parsedProductDetail = parseField2(order.product_detail);
     
-    // Parse thêm field `sku` vào item
     const normalizeItem = (item: any) => ({
       sku: item.sku || '',
       type: item.type || '',
@@ -1077,19 +1006,12 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
     const items = editForm.items || [];
 
-    // ==========================================
-    // MỚI: CHỐT CHẶN KIỂM TRA PHÔI, MÀU, SIZE & STOCK TRƯỚC KHI LƯU
-    // ==========================================
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      
-      // 1. Kiểm tra đã chọn Type chưa
       if (!it.type) {
         alert(`Sản phẩm #${i + 1}: Vui lòng chọn Loại sản phẩm (Phôi)!`);
         return;
       }
-
-      // 2. Tìm phôi tương ứng trong hệ thống
       const blank = podBlanks.find(b => b.name === it.type);
       if (!blank) {
         alert(`Sản phẩm #${i + 1}: Phôi "${it.type}" không tồn tại trên hệ thống.`);
@@ -1105,27 +1027,23 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       const validColors = parseArraySafe(blank.colors);
       const validSizes = parseArraySafe(blank.sizes);
 
-      // 3. Kiểm tra Màu sắc có khớp với phôi không (Không phân biệt hoa/thường)
       const isColorValid = validColors.some((c: string) => c.toLowerCase() === (it.color || '').trim().toLowerCase());
       if (!isColorValid) {
         alert(`Sản phẩm #${i + 1}: Màu "${it.color || 'Trống'}" không được hỗ trợ cho phôi "${it.type}". Vui lòng chọn màu khác!`);
         return;
       }
 
-      // 4. Kiểm tra Kích cỡ có khớp với phôi không
       const isSizeValid = validSizes.some((s: string) => s.toLowerCase() === (it.size || '').trim().toLowerCase());
       if (!isSizeValid) {
         alert(`Sản phẩm #${i + 1}: Size "${it.size || 'Trống'}" không được hỗ trợ cho phôi "${it.type}". Vui lòng chọn size khác!`);
         return;
       }
 
-      // 5. Kiểm tra Tình trạng Hết hàng (Stock)
       if (blank.in_stock === false) {
         alert(`Sản phẩm #${i + 1}: Phôi "${it.type}" hiện đang HẾT HÀNG toàn bộ. Không thể lên đơn!`);
         return;
       }
 
-      // 6. Kiểm tra Hết hàng theo từng biến thể (Nếu hệ thống có khai báo)
       const oosVariants = parseArraySafe(blank.out_of_stock_variants); 
       if (oosVariants.length > 0) {
         const isVariantOos = oosVariants.some((v: any) => 
@@ -1138,13 +1056,10 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         }
       }
 
-      // Tự động chuẩn hóa lại chữ Hoa/Thường cho chuẩn xác trước khi đưa vào Database
       it.color = validColors.find((c: string) => c.toLowerCase() === (it.color || '').trim().toLowerCase()) || it.color;
       it.size = validSizes.find((s: string) => s.toLowerCase() === (it.size || '').trim().toLowerCase()) || it.size;
     }
-    // ==========================================
 
-    // Các phần xử lý dữ liệu và tính tiền giữ nguyên
     const spObj: any = {};
     specialPrintsForm.forEach(i => { if (i.name.trim()) spObj[i.name.trim()] = i.url; });
     const muObj: any = {};
@@ -1283,7 +1198,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     return <span className="text-sm text-gray-500 font-medium">{order.product_type || '---'}</span>;
   };
 
-  
   // ==========================================
   // 4. GIAO DIỆN BẢNG DÙNG CHUNG
   // ==========================================
@@ -1408,11 +1322,9 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                 return [];
               })();
 
-              // 2. Dùng safeItems để tính toán thay vì order.items
               const isFullyMapped = safeItems.length > 0 && safeItems.every((item: any) => item.type && item.color && item.size);
               const displayPrice = isFullyMapped ? (order.order_price || 0) : 0;
               
-              // CHỈ KHAI BÁO 1 LẦN DUY NHẤT ĐỂ TRÁNH SẬP WEB
               const uniqueRowKey = order.id || order.external_order_id || `import-row-${absoluteIdx}`;
               const isEven = idx % 2 === 0;
               const rowBg = isChecked ? 'bg-[#C29017]/10' : (isEven ? 'bg-white' : 'bg-slate-50'); 
@@ -1453,16 +1365,13 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
                   <td className="p-4 font-semibold text-gray-800">{order.customer_name}</td>
 
-                  {/* CỘT SẢN PHẨM & THIẾT KẾ ĐÃ GỘP CHUNG 1 THẺ CARD DUY NHẤT */}
                   <td className="p-4 align-top min-w-[500px] relative hover:z-[90]">
                     <div className="flex flex-col gap-4 py-1">
                       {safeItems.map((item: any, itemIdx: number) => (
                         <div key={`${uniqueRowKey}-item-${itemIdx}`} className="flex gap-5 p-3 bg-white rounded-xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all relative group/itemcard">
                           
-                          {/* NỬA TRÁI: SKU & HÌNH ẢNH */}
                           <div className="w-[240px] shrink-0 flex flex-col gap-2.5 border-r border-gray-100 pr-5">
                             
-                            {/* 1. Dropdown chọn SKU */}
                             <div className="shadow-sm rounded-lg w-full">
                               <SkuCombobox
                                 disabled={isRowLocked}
@@ -1483,15 +1392,14 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               />
                             </div>
                             
-                            {/* 2. Thumbnails Thiết Kế */}
                             <div className="flex items-center gap-2 mt-0.5">
                               {[
                                 { label: 'Front', url: item.design_front },
                                 { label: 'Back', url: item.design_back },
                                 { label: 'Mockup', url: item.mockup }
                               ].map((img, i) => {
-                                // Tách biệt rạch ròi: Đâu là link ảnh, đâu là chữ ghi chú
-                                const isValidUrl = img.url && img.url.trim().toLowerCase().startsWith('http');
+                                // SỬ DỤNG HELPER MỚI CHẶN ĐỨNG URL RELATIVE GÂY LỖI 404
+                                const isValidUrl = isValidImageUrl(img.url);
                                 const isNote = img.url && !isValidUrl;
 
                                 return (
@@ -1501,7 +1409,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                       style={{ backgroundColor: getStandardColor(item.color) }}
                                     >
                                       {isValidUrl ? (
-                                        // Trường hợp 1: Là link ảnh -> Hiện ảnh bình thường
                                         <img 
                                           src={convertGoogleDriveUrl(img.url)} 
                                           alt={img.label} 
@@ -1512,20 +1419,16 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                           }} 
                                         />
                                       ) : isNote ? (
-                                        // Trường hợp 2: LÀ GHI CHÚ -> Hô biến thành icon tờ giấy Note vàng
                                         <div className="flex flex-col items-center justify-center p-1 w-full h-full bg-yellow-50/90 border-b-2 border-yellow-300">
                                           <span className="text-[14px]">📝</span>
                                           <span className="text-[6.5px] font-bold text-gray-700 leading-tight text-center line-clamp-1 w-full px-0.5">{img.url}</span>
                                         </div>
                                       ) : (
-                                        // Trường hợp 3: Bỏ trống
                                         <span className="text-[7px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded">{img.label}</span>
                                       )}
                                     </div>
                                     
-                                    {/* Tooltip khi hover */}
                                     {isValidUrl ? (
-                                      // Hover vào ảnh thì phóng to ảnh
                                       <div className="absolute top-full left-0 mt-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
                                         <div className="bg-white p-1.5 rounded-xl shadow-2xl border border-gray-200">
                                           <img 
@@ -1540,7 +1443,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                         </div>
                                       </div>
                                     ) : isNote && (
-                                      // Hover vào ghi chú thì phóng to chữ ghi chú ra cho dễ đọc
                                       <div className="absolute top-full left-0 mt-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
                                         <div className="bg-yellow-50 p-2.5 rounded-lg shadow-xl border border-yellow-300 min-w-[150px] max-w-[250px]">
                                           <div className="text-[10px] font-bold text-yellow-800 mb-1 uppercase border-b border-yellow-200 pb-1">Ghi chú ({img.label}):</div>
@@ -1553,10 +1455,8 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               })}
                             </div>
 
-                            {/* 3. MỚI: Ô NHẬP LINK INLINE (AUTO-SAVE) */}
                             <div className="flex flex-col gap-1.5 mt-auto">
                               <input
-                                // Kỹ thuật nâng cao: Gắn kèm chính cái link vào key để ép React reset ô nhập liệu nếu Seller đổi SKU khác
                                 key={`front-${uniqueRowKey}-${itemIdx}-${item.design_front || 'empty'}`}
                                 type="text"
                                 disabled={isRowLocked}
@@ -1584,7 +1484,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
                           </div>
 
-                          {/* NỬA PHẢI: PHÔI, SIZE, MÀU & GHI CHÚ */}
                           <div className="flex-1 flex flex-col gap-2 justify-center">
                             
                             {item.original_string && (
@@ -1899,12 +1798,11 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       )}
 
-      {/* MODAL CHI TIẾT/CHỈNH SỬA - GIAO DIỆN HIỆN ĐẠI MỚI */}
+      {/* MODAL CHI TIẾT/CHỈNH SỬA */}
       {editingIndex !== null && (
         <div className="fixed inset-0 bg-gray-900/50 z-[999] flex items-center justify-center p-4 backdrop-blur-sm transition-all duration-300">
           <div className="bg-slate-50 rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.2)] w-[75vw] max-w-7xl max-h-[90vh] flex flex-col scale-in overflow-hidden border border-white/20">
             
-            {/* Header Modal */}
             <div className="px-8 py-4 border-b border-gray-200/60 flex justify-between items-center bg-white z-10 shadow-sm rounded-t-[2rem]">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-[#C29017]/10 text-[#C29017] rounded-2xl flex items-center justify-center shadow-inner shrink-0">
@@ -1916,7 +1814,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                       {isReadOnly ? 'Chi tiết đơn hàng' : 'Cập nhật đơn hàng'}
                     </h3>
                     
-                    {/* Badge Trạng thái đơn hàng */}
                     {(() => {
                       switch(editForm.status) {
                         case 'pending': return <span className="bg-amber-50 text-amber-600 px-2.5 py-0.5 rounded-full text-[11px] font-bold ring-1 ring-amber-200/60 shadow-sm">Chờ thanh toán</span>;
@@ -1930,7 +1827,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                     })()}
                   </div>
                   
-                  {/* Hiển thị Mã đơn hàng */}
                   <div className="text-xs text-gray-500 font-semibold flex items-center gap-1.5">
                     Mã hệ thống: <span className="text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded font-mono">{editForm.external_order_id || 'Chưa lưu'}</span>
                   </div>
@@ -1942,10 +1838,8 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               </button>
             </div>
             
-            {/* Body Modal */}
             <div className="p-8 overflow-y-auto space-y-8">
              
-              {/* Cảnh báo khóa đơn */}
               {editForm.status === 'complete' && (
                 <div className="p-4 bg-blue-50/80 ring-1 ring-blue-200 text-blue-800 rounded-2xl text-xs font-bold leading-relaxed shadow-sm">
                   Đơn hàng đã được thanh toán và gửi đến Admin xưởng. Bạn vẫn có thể thay đổi thiết kế hoặc thông tin giao hàng ở đây, nhưng để đảm bảo an toàn, vui lòng liên hệ thêm bộ phận hỗ trợ xưởng để cập nhật kịp thời!
@@ -1957,7 +1851,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                 </div>
               )}
 
-              {/* KHỐI 1: THÔNG TIN KHÁCH HÀNG & GIAO HÀNG (Hiệu ứng thẻ Card nổi) */}
+              {/* KHỐI 1: THÔNG TIN KHÁCH HÀNG & GIAO HÀNG */}
               <div className="bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-gray-100">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                   <div className="space-y-5">
@@ -2027,7 +1921,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
                   return (
                     <div key={index} className="bg-white p-6 md:p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-gray-100 space-y-6 relative group transition-all hover:shadow-[0_8px_40px_rgb(0,0,0,0.08)]">
-                      {/* Vạch kẻ màu vàng trang trí (đã thêm rounded-l-[2rem] và gỡ bỏ overflow-hidden ở thẻ cha) */}
                       <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-[#C29017] to-amber-200 opacity-80 rounded-l-[2rem]"></div>
                       {item.original_string && (
                         <div className="bg-amber-50/50 ring-1 ring-amber-200/80 p-4 rounded-2xl flex items-start gap-3 shadow-sm relative z-10">
@@ -2040,7 +1933,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                           </div>
                         </div>
                       )}
-                      {/* HÀNG 1: SKUs */}
                       <div className="flex justify-between items-start pb-4">
                         <div className="flex-1 flex items-center gap-4">
                           <span className="text-[10px] bg-gray-900 text-white px-3 py-1.5 rounded-lg font-bold uppercase tracking-wider shadow-sm">Món #{index + 1}</span>
@@ -2085,7 +1977,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         )}
                       </div>
                       
-                      {/* HÀNG 2: Thông số Phôi */}
                       <div className="grid grid-cols-5 gap-6 bg-gray-50/50 p-5 rounded-2xl ring-1 ring-gray-100">
                         <div className="col-span-2">
                           <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1.5">Loại sản phẩm (Phôi)</label>
@@ -2106,11 +1997,9 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                 const newBlankColors = parseArraySafe(newBlank.colors);
                                 const newBlankSizes = parseArraySafe(newBlank.sizes);
                                 
-                                // MỚI: Tự động mapping Màu và Size từ CSV (Không phân biệt hoa/thường)
                                 const matchedColor = newBlankColors.find((c: string) => c.toLowerCase() === (currentItem.color || '').trim().toLowerCase());
                                 const matchedSize = newBlankSizes.find((s: string) => s.toLowerCase() === (currentItem.size || '').trim().toLowerCase());
                                 
-                                // Tự động gán vào ô. Nếu không khớp thì giữ nguyên chuỗi bị sai để lúc bấm "Lưu" hàm Validation sẽ bắt lỗi.
                                 currentItem.color = matchedColor || currentItem.color;
                                 currentItem.size = matchedSize || currentItem.size;
                               }
@@ -2132,7 +2021,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                             {availableSizes.map((s: string) => <option key={s} value={s}>{s}</option>)}
                           </select>
                         </div>
-                        {/* Ô SỐ LƯỢNG */}
                         <div>
                           <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1.5">Số lượng</label>
                           <input 
@@ -2150,19 +2038,17 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         </div>
                       </div>
                       
-                      {/* HÀNG 3: Designs (Đã đồng bộ màu nền áo) */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                         {/* Mặt Trước */}
                         <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-blue-200">
                           <div className="relative group/img shrink-0">
                             {(() => {
-                              // Tách biệt rạch ròi: Đâu là link ảnh, đâu là chữ ghi chú
-                              const isValidUrl = item.design_front && item.design_front.trim().toLowerCase().startsWith('http');
+                              // Dùng Helper mới kiểm tra khắt khe
+                              const isValidUrl = isValidImageUrl(item.design_front);
                               const isNote = item.design_front && !isValidUrl;
 
                               return (
                                 <>
-                                  {/* Khung chứa ảnh hoặc Ghi chú */}
                                   <div 
                                     className="w-20 h-20 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300 relative"
                                     style={{ backgroundColor: getStandardColor(item.color) }}
@@ -2178,7 +2064,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                         }} 
                                       />
                                     ) : isNote ? (
-                                      // Hiển thị tờ giấy Note nếu là ghi chú chữ
                                       <div className="flex flex-col items-center justify-center p-2 w-full h-full bg-yellow-50/90 border-b-[3px] border-yellow-300">
                                         <span className="text-[20px]">📝</span>
                                         <span className="text-[9px] font-bold text-gray-700 leading-tight text-center line-clamp-2 w-full mt-1 px-1">{item.design_front}</span>
@@ -2188,7 +2073,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                     )}
                                   </div>
 
-                                  {/* Khung Phóng to (Tooltip) khi Hover */}
                                   {isValidUrl ? (
                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
                                       <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
@@ -2226,7 +2110,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-purple-200">
                           <div className="relative group/img shrink-0">
                             {(() => {
-                              const isValidUrl = item.design_back && item.design_back.trim().toLowerCase().startsWith('http');
+                              const isValidUrl = isValidImageUrl(item.design_back);
                               const isNote = item.design_back && !isValidUrl;
 
                               return (
@@ -2283,7 +2167,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-teal-200">
                           <div className="relative group/img shrink-0">
                             {(() => {
-                              const isValidUrl = item.mockup && item.mockup.trim().toLowerCase().startsWith('http');
+                              const isValidUrl = isValidImageUrl(item.mockup);
                               const isNote = item.mockup && !isValidUrl;
 
                               return (
@@ -2353,7 +2237,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               <div key={aIdx} className="flex gap-3 bg-gray-50/80 p-3 rounded-2xl ring-1 ring-gray-100 relative group/extra transition-all hover:bg-white hover:shadow-md">
                                 <div className="relative group/img shrink-0">
                                   {(() => {
-                                    const isValidUrl = area.url && area.url.trim().toLowerCase().startsWith('http');
+                                    const isValidUrl = isValidImageUrl(area.url);
                                     const isNote = area.url && !isValidUrl;
 
                                     return (
@@ -2422,7 +2306,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 
             </div>
 
-            {/* Footer Modal */}
             <div className="px-8 py-5 bg-white border-t border-gray-100 flex justify-end gap-4 z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
               <button onClick={() => setEditingIndex(null)} className="px-8 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-2xl transition-colors">
                 {isReadOnly ? 'Đóng' : 'Hủy bỏ'}
@@ -2438,11 +2321,9 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       )}
       
-      {/* THANH CÔNG CỤ BULK ACTION NỔI Ở ĐÁY MÀN HÌNH */}
       {selectedRows.length > 0 && (
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-4 rounded-2xl shadow-[0_10px_40px_-10px_rgba(194,144,23,0.3)] z-[60] flex items-center gap-6 border border-gray-700 transition-all duration-300">
           <div className="flex items-center gap-2">
-            {/* Số đếm màu Gold */}
             <span className="flex items-center justify-center bg-[#C29017] text-white w-6 h-6 rounded-full text-xs font-bold animate-pulse shadow-[0_0_10px_#C29017]">
               {selectedRows.length}
             </span>
@@ -2512,7 +2393,6 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
           </div>
         </div>
       )}
-      {/* POPUP NHẬP LÝ DO & ẢNH MINH CHỨNG BIẾN ĐỘNG HỖ TRỢ */}
       {isSupportModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <form onSubmit={handleConfirmSupport} className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">

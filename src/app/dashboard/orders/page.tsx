@@ -1489,27 +1489,68 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                 { label: 'Front', url: item.design_front },
                                 { label: 'Back', url: item.design_back },
                                 { label: 'Mockup', url: item.mockup }
-                              ].map((img, i) => (
-                                <div key={i} className="relative group/inlineImg">
-                                  <div 
-                                    className="w-[50px] h-[50px] rounded-md border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors"
-                                    style={{ backgroundColor: getStandardColor(item.color) }}
-                                  >
-                                    {img.url ? (
-                                      <img src={convertGoogleDriveUrl(img.url)} alt={img.label} className={`w-full h-full ${img.label === 'Mockup' ? 'object-cover' : 'object-contain p-0.5'}`} />
-                                    ) : (
-                                      <span className="text-[7px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded">{img.label}</span>
+                              ].map((img, i) => {
+                                // Tách biệt rạch ròi: Đâu là link ảnh, đâu là chữ ghi chú
+                                const isValidUrl = img.url && img.url.trim().toLowerCase().startsWith('http');
+                                const isNote = img.url && !isValidUrl;
+
+                                return (
+                                  <div key={i} className="relative group/inlineImg">
+                                    <div 
+                                      className="w-[50px] h-[50px] rounded-md border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors relative"
+                                      style={{ backgroundColor: getStandardColor(item.color) }}
+                                    >
+                                      {isValidUrl ? (
+                                        // Trường hợp 1: Là link ảnh -> Hiện ảnh bình thường
+                                        <img 
+                                          src={convertGoogleDriveUrl(img.url)} 
+                                          alt={img.label} 
+                                          className={`w-full h-full ${img.label === 'Mockup' ? 'object-cover' : 'object-contain p-0.5'}`} 
+                                          onError={(e) => { 
+                                            e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                            e.currentTarget.onerror = null; 
+                                          }} 
+                                        />
+                                      ) : isNote ? (
+                                        // Trường hợp 2: LÀ GHI CHÚ -> Hô biến thành icon tờ giấy Note vàng
+                                        <div className="flex flex-col items-center justify-center p-1 w-full h-full bg-yellow-50/90 border-b-2 border-yellow-300">
+                                          <span className="text-[14px]">📝</span>
+                                          <span className="text-[6.5px] font-bold text-gray-700 leading-tight text-center line-clamp-1 w-full px-0.5">{img.url}</span>
+                                        </div>
+                                      ) : (
+                                        // Trường hợp 3: Bỏ trống
+                                        <span className="text-[7px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded">{img.label}</span>
+                                      )}
+                                    </div>
+                                    
+                                    {/* Tooltip khi hover */}
+                                    {isValidUrl ? (
+                                      // Hover vào ảnh thì phóng to ảnh
+                                      <div className="absolute top-full left-0 mt-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
+                                        <div className="bg-white p-1.5 rounded-xl shadow-2xl border border-gray-200">
+                                          <img 
+                                            src={convertGoogleDriveUrl(img.url)} 
+                                            className="w-auto h-auto max-w-[200px] object-contain rounded-lg" 
+                                            style={{ backgroundColor: getStandardColor(item.color) }} 
+                                            onError={(e) => { 
+                                              e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                              e.currentTarget.onerror = null; 
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+                                    ) : isNote && (
+                                      // Hover vào ghi chú thì phóng to chữ ghi chú ra cho dễ đọc
+                                      <div className="absolute top-full left-0 mt-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
+                                        <div className="bg-yellow-50 p-2.5 rounded-lg shadow-xl border border-yellow-300 min-w-[150px] max-w-[250px]">
+                                          <div className="text-[10px] font-bold text-yellow-800 mb-1 uppercase border-b border-yellow-200 pb-1">Ghi chú ({img.label}):</div>
+                                          <p className="text-[11px] text-gray-800 whitespace-pre-wrap">{img.url}</p>
+                                        </div>
+                                      </div>
                                     )}
                                   </div>
-                                  {img.url && (
-                                    <div className="absolute top-full left-0 mt-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
-                                      <div className="bg-white p-1.5 rounded-xl shadow-2xl border border-gray-200">
-                                        <img src={convertGoogleDriveUrl(img.url)} className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
 
                             {/* 3. MỚI: Ô NHẬP LINK INLINE (AUTO-SAVE) */}

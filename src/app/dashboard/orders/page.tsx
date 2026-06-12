@@ -946,7 +946,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
           extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : newItems[itemIndex].extra_print_areas
         };
         setEditForm({ ...editForm, items: newItems });
-        notify(`🎉 Đã đồng bộ thiết kế thành công cho SKU: ${sku}`);
+        notify(`Đã đồng bộ thiết kế thành công cho SKU: ${sku}`);
       } else {
         alert(`Không tìm thấy mã SKU "${sku}" trong thư viện thiết kế của bạn. Vui lòng kiểm tra lại!`);
       }
@@ -2066,8 +2066,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                   extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : newItems[index].extra_print_areas
                                 };
                                 setEditForm({ ...editForm, items: newItems });
-                                setImageError(prev => ({...prev, [`front-${index}`]: false, [`back-${index}`]: false, [`mockup-${index}`]: false}));
-                                notify(`🎉 Đã đồng bộ thiết kế thành công cho: ${matchedDesign.sku}`);
+                                notify(`Đã đồng bộ thiết kế thành công cho: ${matchedDesign.sku}`);
                               }}
                             />
                           </div>
@@ -2183,7 +2182,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                           </div>
                           <div className="flex-1 flex flex-col justify-center gap-1.5">
                             <label className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Mặt Trước</label>
-                            <input disabled={isReadOnly} placeholder="Nhập Link Design..." value={item.design_front || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_front: e.target.value }; setEditForm({ ...editForm, items: n }); setImageError(prev => ({...prev, [`front-${index}`]: false})); }} className="w-full bg-gray-50 ring-1 ring-gray-200 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all"/>
+                            <input disabled={isReadOnly} placeholder="Nhập Link Design..." value={item.design_front || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_front: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full bg-gray-50 ring-1 ring-gray-200 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all"/>
                           </div>
                         </div>
 
@@ -2216,7 +2215,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                           </div>
                           <div className="flex-1 flex flex-col justify-center gap-1.5">
                             <label className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Mặt Sau</label>
-                            <input disabled={isReadOnly} placeholder="Nhập Link Design..." value={item.design_back || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_back: e.target.value }; setEditForm({ ...editForm, items: n }); setImageError(prev => ({...prev, [`back-${index}`]: false})); }} className="w-full bg-gray-50 ring-1 ring-gray-200 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-purple-400 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all"/>
+                            <input disabled={isReadOnly} placeholder="Nhập Link Design..." value={item.design_back || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], design_back: e.target.value }; setEditForm({ ...editForm, items: n });  }} className="w-full bg-gray-50 ring-1 ring-gray-200 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-purple-400 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all"/>
                           </div>
                         </div>
 
@@ -2228,7 +2227,15 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               style={{ backgroundColor: getStandardColor(item.color) }}
                             >
                               {item.mockup ? (
-                                <img src={imageError[`mockup-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.mockup)} alt="Mockup" className="w-full h-full object-cover" onError={() => setImageError(prev => ({ ...prev, [`mockup-${index}`]: true }))} />
+                                <img 
+                                  src={convertGoogleDriveUrl(item.mockup)} 
+                                  alt="Mockup" 
+                                  className="w-full h-full object-cover" 
+                                  onError={(e) => { 
+                                    e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                    e.currentTarget.onerror = null; 
+                                  }} 
+                                />
                               ) : <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Mockup</span>}
                             </div>
                             {item.mockup && !imageError[`mockup-${index}`] && (
@@ -2241,7 +2248,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                           </div>
                           <div className="flex-1 flex flex-col justify-center gap-1.5">
                             <label className="text-[10px] text-teal-600 font-bold uppercase tracking-wider">Mockup SP</label>
-                            <input disabled={isReadOnly} placeholder="Nhập Link Mockup..." value={item.mockup || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], mockup: e.target.value }; setEditForm({ ...editForm, items: n }); setImageError(prev => ({...prev, [`mockup-${index}`]: false})); }} className="w-full bg-gray-50 ring-1 ring-gray-200 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-teal-400 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all"/>
+                            <input disabled={isReadOnly} placeholder="Nhập Link Mockup..." value={item.mockup || ''} onChange={(e) => { const n = [...editForm.items]; n[index] = { ...n[index], mockup: e.target.value }; setEditForm({ ...editForm, items: n }); }} className="w-full bg-gray-50 ring-1 ring-gray-200 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-teal-400 focus:bg-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all"/>
                           </div>
                         </div>
                       </div>
@@ -2265,7 +2272,18 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                                     className="w-12 h-12 rounded-lg shadow-sm flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300"
                                     style={{ backgroundColor: getStandardColor(item.color) }}
                                   >
-                                    {area.url ? <img src={imageError[`extra-${index}-${aIdx}`] ? '/no-image.png' : convertGoogleDriveUrl(area.url)} className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({...prev, [`extra-${index}-${aIdx}`]: true}))} /> : <span className="text-[8px] font-bold text-gray-600 bg-white/80 backdrop-blur-sm px-1 py-0.5 rounded shadow-sm">No Img</span>}
+                                    {area.url ? (
+                                      <img 
+                                        src={convertGoogleDriveUrl(area.url)} 
+                                        className="w-full h-full object-contain p-1" 
+                                        onError={(e) => { 
+                                          e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                          e.currentTarget.onerror = null; 
+                                        }} 
+                                      />
+                                    ) : (
+                                      <span className="text-[8px] font-bold text-gray-600 bg-white/80 backdrop-blur-sm px-1 py-0.5 rounded shadow-sm">No Img</span>
+                                    )}
                                   </div>
                                   {area.url && !imageError[`extra-${index}-${aIdx}`] && (
                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">

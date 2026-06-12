@@ -1367,168 +1367,207 @@ export default function OrdersPage() {
 
                   <td className="p-4 align-top min-w-[500px] relative hover:z-[90]">
                     <div className="flex flex-col gap-4 py-1">
-                      {safeItems.map((item: any, itemIdx: number) => (
-                        <div key={`${uniqueRowKey}-item-${itemIdx}`} className="flex gap-5 p-3 bg-white rounded-xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all relative group/itemcard">
-                          
-                          <div className="w-[240px] shrink-0 flex flex-col gap-2.5 border-r border-gray-100 pr-5">
+                      {safeItems.map((item: any, itemIdx: number) => {
+                        // Đưa logic xử lý lên đầu hàm map (Rất gọn gàng, không cần ngoặc lằng nhằng)
+                        const selectedBlank = podBlanks.find(b => b.name === item.type);
+                        const parseArraySafe = (data: any) => {
+                          if (Array.isArray(data)) return data;
+                          if (typeof data === 'string') { try { return JSON.parse(data) || []; } catch { return []; } }
+                          return [];
+                        };
+                        const availableColors = parseArraySafe(selectedBlank?.colors);
+                        const availableSizes = parseArraySafe(selectedBlank?.sizes);
+                  
+                        return (
+                          <div key={`${uniqueRowKey}-item-${itemIdx}`} className="flex gap-5 p-3 bg-white rounded-xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all relative group/itemcard">
                             
-                            <div className="shadow-sm rounded-lg w-full">
-                              <SkuCombobox
-                                disabled={isRowLocked}
-                                value={item.sku || ''}
-                                options={sellerDesigns}
-                                onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { sku: val })}
-                                onSelect={(design) => {
-                                  const libraryExtraAreas = design.extra_print_areas || [];
-                                  updateInlineItem(absoluteIdx, itemIdx, {
-                                    sku: design.sku,
-                                    design_front: design.design_front_url,
-                                    design_back: design.design_back_url,
-                                    mockup: design.mockup_url,
-                                    extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : undefined
-                                  });
-                                  notify(`Đã đồng bộ thiết kế SKU: ${design.sku}`);
-                                }}
-                              />
-                            </div>
-                            
-                            <div className="flex items-center gap-2 mt-0.5">
-                              {[
-                                { label: 'Front', url: item.design_front },
-                                { label: 'Back', url: item.design_back },
-                                { label: 'Mockup', url: item.mockup }
-                              ].map((img, i) => {
-                                // SỬ DỤNG HELPER MỚI CHẶN ĐỨNG URL RELATIVE GÂY LỖI 404
-                                const isValidUrl = isValidImageUrl(img.url);
-                                const isNote = img.url && !isValidUrl;
-
-                                return (
-                                  <div key={i} className="relative group/inlineImg">
-                                    <div 
-                                      className="w-[50px] h-[50px] rounded-md border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors relative"
-                                      style={{ backgroundColor: getStandardColor(item.color) }}
-                                    >
-                                      {isValidUrl ? (
-                                        <img 
-                                          src={convertGoogleDriveUrl(img.url)} 
-                                          alt={img.label} 
-                                          className={`w-full h-full ${img.label === 'Mockup' ? 'object-cover' : 'object-contain p-0.5'}`} 
-                                          onError={(e) => { 
-                                            e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
-                                            e.currentTarget.onerror = null; 
-                                          }} 
-                                        />
-                                      ) : isNote ? (
-                                        <div className="flex flex-col items-center justify-center p-1 w-full h-full bg-yellow-50/90 border-b-2 border-yellow-300">
-                                          <span className="text-[14px]">📝</span>
-                                          <span className="text-[6.5px] font-bold text-gray-700 leading-tight text-center line-clamp-1 w-full px-0.5">{img.url}</span>
-                                        </div>
-                                      ) : (
-                                        <span className="text-[7px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded">{img.label}</span>
-                                      )}
-                                    </div>
-                                    
-                                    {isValidUrl ? (
-                                      <div className="absolute top-full left-0 mt-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
-                                        <div className="bg-white p-1.5 rounded-xl shadow-2xl border border-gray-200">
+                            {/* ================= NỬA TRÁI ================= */}
+                            <div className="w-[240px] shrink-0 flex flex-col gap-2.5 border-r border-gray-100 pr-5">
+                              <div className="shadow-sm rounded-lg w-full">
+                                <SkuCombobox
+                                  disabled={isRowLocked}
+                                  value={item.sku || ''}
+                                  options={sellerDesigns}
+                                  onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { sku: val })}
+                                  onSelect={(design) => {
+                                    const libraryExtraAreas = design.extra_print_areas || [];
+                                    updateInlineItem(absoluteIdx, itemIdx, {
+                                      sku: design.sku,
+                                      design_front: design.design_front_url,
+                                      design_back: design.design_back_url,
+                                      mockup: design.mockup_url,
+                                      extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : undefined
+                                    });
+                                    notify(`Đã đồng bộ thiết kế SKU: ${design.sku}`);
+                                  }}
+                                />
+                              </div>
+                              
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {[
+                                  { label: 'Front', url: item.design_front },
+                                  { label: 'Back', url: item.design_back },
+                                  { label: 'Mockup', url: item.mockup }
+                                ].map((img, i) => {
+                                  const isValidUrl = isValidImageUrl(img.url);
+                                  const isNote = img.url && !isValidUrl;
+                  
+                                  return (
+                                    <div key={i} className="relative group/inlineImg">
+                                      <div 
+                                        className="w-[50px] h-[50px] rounded-md border border-gray-200 flex items-center justify-center overflow-hidden cursor-help shadow-sm transition-colors relative"
+                                        style={{ backgroundColor: getStandardColor(item.color) }}
+                                      >
+                                        {isValidUrl ? (
                                           <img 
                                             src={convertGoogleDriveUrl(img.url)} 
-                                            className="w-auto h-auto max-w-[200px] object-contain rounded-lg" 
-                                            style={{ backgroundColor: getStandardColor(item.color) }} 
+                                            alt={img.label} 
+                                            className={`w-full h-full ${img.label === 'Mockup' ? 'object-cover' : 'object-contain p-0.5'}`} 
                                             onError={(e) => { 
                                               e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
                                               e.currentTarget.onerror = null; 
-                                            }}
+                                            }} 
                                           />
-                                        </div>
+                                        ) : isNote ? (
+                                          <div className="flex flex-col items-center justify-center p-1 w-full h-full bg-yellow-50/90 border-b-2 border-yellow-300">
+                                            <span className="text-[14px]">📝</span>
+                                            <span className="text-[6.5px] font-bold text-gray-700 leading-tight text-center line-clamp-1 w-full px-0.5">{img.url}</span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-[7px] font-bold text-gray-500 uppercase bg-white/80 px-1 py-0.5 rounded">{img.label}</span>
+                                        )}
                                       </div>
-                                    ) : isNote && (
-                                      <div className="absolute top-full left-0 mt-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
-                                        <div className="bg-yellow-50 p-2.5 rounded-lg shadow-xl border border-yellow-300 min-w-[150px] max-w-[250px]">
-                                          <div className="text-[10px] font-bold text-yellow-800 mb-1 uppercase border-b border-yellow-200 pb-1">Ghi chú ({img.label}):</div>
-                                          <p className="text-[11px] text-gray-800 whitespace-pre-wrap">{img.url}</p>
+                                      
+                                      {isValidUrl ? (
+                                        <div className="absolute top-full left-0 mt-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
+                                          <div className="bg-white p-1.5 rounded-xl shadow-2xl border border-gray-200">
+                                            <img 
+                                              src={convertGoogleDriveUrl(img.url)} 
+                                              className="w-auto h-auto max-w-[200px] object-contain rounded-lg" 
+                                              style={{ backgroundColor: getStandardColor(item.color) }} 
+                                              onError={(e) => { 
+                                                e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                                e.currentTarget.onerror = null; 
+                                              }}
+                                            />
+                                          </div>
                                         </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            <div className="flex flex-col gap-1.5 mt-auto">
-                              <input
-                                key={`front-${uniqueRowKey}-${itemIdx}-${item.design_front || 'empty'}`}
-                                type="text"
-                                disabled={isRowLocked}
-                                placeholder="🔗 Link Design Mặt Trước..."
-                                defaultValue={item.design_front || ''}
-                                onBlur={(e) => {
-                                  if (e.target.value === item.design_front) return;
-                                  updateInlineItem(absoluteIdx, itemIdx, { design_front: e.target.value });
-                                }}
-                                className="w-full text-[9px] px-2 py-1.5 bg-blue-50/30 border border-blue-100/50 rounded-md outline-none focus:border-blue-400 focus:bg-blue-50 text-gray-700 transition-all placeholder-gray-400 shadow-sm"
-                              />
-                              <input
-                                key={`back-${uniqueRowKey}-${itemIdx}-${item.design_back || 'empty'}`}
-                                type="text"
-                                disabled={isRowLocked}
-                                placeholder="Link Design Mặt Sau (Nếu có)..."
-                                defaultValue={item.design_back || ''}
-                                onBlur={(e) => {
-                                  if (e.target.value === item.design_back) return;
-                                  updateInlineItem(absoluteIdx, itemIdx, { design_back: e.target.value });
-                                }}
-                                className="w-full text-[9px] px-2 py-1.5 bg-blue-50/30 border border-blue-100/50 rounded-md outline-none focus:border-blue-400 focus:bg-blue-50 text-gray-700 transition-all placeholder-gray-400 shadow-sm"
-                              />
-                            </div>
-
-                          </div>
-
-                          <div className="flex-1 flex flex-col gap-2 justify-center">
-                            
-                            {item.original_string && (
-                              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2 py-1.5 rounded text-amber-700 w-fit max-w-full">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" /></svg>
-                                <span className="text-[10px] font-bold truncate tracking-tight">{item.original_string}</span>
+                                      ) : isNote && (
+                                        <div className="absolute top-full left-0 mt-2 hidden group-hover/inlineImg:block z-[99999] pointer-events-none">
+                                          <div className="bg-yellow-50 p-2.5 rounded-lg shadow-xl border border-yellow-300 min-w-[150px] max-w-[250px]">
+                                            <div className="text-[10px] font-bold text-yellow-800 mb-1 uppercase border-b border-yellow-200 pb-1">Ghi chú ({img.label}):</div>
+                                            <p className="text-[11px] text-gray-800 whitespace-pre-wrap">{img.url}</p>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            )}
-
-                            <SearchableDropdown disabled={isRowLocked} value={item.type || ''} placeholder="Chọn phôi..." options={podBlanks} onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { type: val })} />
-                            
-                            <div className="text-[10px] text-gray-500 font-medium px-1.5 flex items-center justify-between bg-gray-50 rounded border border-gray-100 py-1.5">
-                              <span>Màu: <b className={!item.color ? 'text-red-500 font-extrabold' : 'text-gray-700 uppercase'}>{item.color || 'Trống'}</b></span>
-                              <span className="text-gray-300">|</span>
-                              <span>Size: <b className={!item.size ? 'text-red-500 font-extrabold' : 'text-gray-700 uppercase'}>{item.size || 'Trống'}</b></span>
-                              <span className="text-gray-300">|</span>
-                              <span>SL: <b className="text-[#C29017] text-xs">{item.quantity || 1}</b></span>
+                  
+                              <div className="flex flex-col gap-1.5 mt-auto">
+                                <input
+                                  key={`front-${uniqueRowKey}-${itemIdx}-${item.design_front || 'empty'}`}
+                                  type="text"
+                                  disabled={isRowLocked}
+                                  placeholder="🔗 Link Design Mặt Trước..."
+                                  defaultValue={item.design_front || ''}
+                                  onBlur={(e) => {
+                                    if (e.target.value === item.design_front) return;
+                                    updateInlineItem(absoluteIdx, itemIdx, { design_front: e.target.value });
+                                  }}
+                                  className="w-full text-[9px] px-2 py-1.5 bg-blue-50/30 border border-blue-100/50 rounded-md outline-none focus:border-blue-400 focus:bg-blue-50 text-gray-700 transition-all placeholder-gray-400 shadow-sm"
+                                />
+                                <input
+                                  key={`back-${uniqueRowKey}-${itemIdx}-${item.design_back || 'empty'}`}
+                                  type="text"
+                                  disabled={isRowLocked}
+                                  placeholder="Link Design Mặt Sau (Nếu có)..."
+                                  defaultValue={item.design_back || ''}
+                                  onBlur={(e) => {
+                                    if (e.target.value === item.design_back) return;
+                                    updateInlineItem(absoluteIdx, itemIdx, { design_back: e.target.value });
+                                  }}
+                                  className="w-full text-[9px] px-2 py-1.5 bg-blue-50/30 border border-blue-100/50 rounded-md outline-none focus:border-blue-400 focus:bg-blue-50 text-gray-700 transition-all placeholder-gray-400 shadow-sm"
+                                />
+                              </div>
                             </div>
-
-                            <input
-                              key={`note-${uniqueRowKey}-${itemIdx}`}
-                              type="text"
-                              disabled={isRowLocked}
-                              placeholder="✏️ Thêm ghi chú cho hệ thống..."
-                              defaultValue={order.order_note || ''}
-                              onBlur={(e) => {
-                                if (e.target.value === order.order_note) return;
-                                const targetOrders = isImport ? [...importOrders] : [...dbOrders];
-                                const updatedOrder = { ...targetOrders[absoluteIdx], order_note: e.target.value };
-                                targetOrders[absoluteIdx] = updatedOrder;
-                                if (isImport) setImportOrders(targetOrders);
-                                else {
-                                  setDbOrders(targetOrders);
-                                  const payloadForApi = { ...updatedOrder, product_detail: JSON.stringify(updatedOrder.items), items: undefined };
-                                  api.post('/partner/orders', { orders: [payloadForApi], target_shop_id: selectedShopId }).catch(err => console.error(err));
-                                }
-                              }}
-                              className="w-full bg-yellow-50/50 border border-yellow-200/80 text-[10px] px-2 py-1.5 rounded-md outline-none focus:border-yellow-400 focus:bg-yellow-50 text-gray-700 placeholder-gray-400 shadow-sm mt-0.5"
-                            />
+                  
+                            {/* ================= NỬA PHẢI ================= */}
+                            <div className="flex-1 flex flex-col gap-2 justify-center">
+                              
+                              {item.original_string && (
+                                <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2 py-1.5 rounded text-amber-700 w-fit max-w-full">
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" /></svg>
+                                  <span className="text-[10px] font-bold truncate tracking-tight">{item.original_string}</span>
+                                </div>
+                              )}
+                  
+                              <SearchableDropdown disabled={isRowLocked} value={item.type || ''} placeholder="Chọn phôi..." options={podBlanks} onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { type: val })} />
+                              
+                              {/* --- Block Chọn MÀU SẮC, SIZE và SL mới --- */}
+                              <div className="flex items-center gap-1.5 w-full">
+                                <select
+                                  disabled={isRowLocked || !item.type}
+                                  value={item.color || ''}
+                                  onChange={(e) => updateInlineItem(absoluteIdx, itemIdx, { color: e.target.value })}
+                                  className={`flex-1 bg-gray-50 border p-1.5 rounded-md text-[10px] outline-none focus:border-blue-400 focus:bg-white disabled:opacity-60 transition-colors cursor-pointer 
+                                    ${!item.color && item.type ? 'border-red-400 bg-red-50 text-red-600 font-bold' : 'border-gray-200 text-gray-700'}`}
+                                >
+                                  <option value="">Chọn Màu</option>
+                                  {availableColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                  
+                                <select
+                                  disabled={isRowLocked || !item.type}
+                                  value={item.size || ''}
+                                  onChange={(e) => updateInlineItem(absoluteIdx, itemIdx, { size: e.target.value })}
+                                  className={`flex-1 bg-gray-50 border p-1.5 rounded-md text-[10px] outline-none focus:border-blue-400 focus:bg-white disabled:opacity-60 transition-colors cursor-pointer 
+                                    ${!item.size && item.type ? 'border-red-400 bg-red-50 text-red-600 font-bold' : 'border-gray-200 text-gray-700'}`}
+                                >
+                                  <option value="">Chọn Size</option>
+                                  {availableSizes.map((s: string) => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                  
+                                <div className="flex items-center bg-gray-50 border border-gray-200 rounded-md overflow-hidden shrink-0">
+                                  <span className="text-[9px] font-bold text-gray-400 px-1.5 border-r border-gray-200 bg-gray-100">SL</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    disabled={isRowLocked}
+                                    value={item.quantity || 1}
+                                    onChange={(e) => updateInlineItem(absoluteIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                                    className="w-8 p-1.5 text-[10px] text-center font-bold text-[#C29017] outline-none bg-transparent"
+                                  />
+                                </div>
+                              </div>
+                  
+                              <input
+                                key={`note-${uniqueRowKey}-${itemIdx}`}
+                                type="text"
+                                disabled={isRowLocked}
+                                placeholder="✏️ Thêm ghi chú cho hệ thống..."
+                                defaultValue={order.order_note || ''}
+                                onBlur={(e) => {
+                                  if (e.target.value === order.order_note) return;
+                                  const targetOrders = isImport ? [...importOrders] : [...dbOrders];
+                                  const updatedOrder = { ...targetOrders[absoluteIdx], order_note: e.target.value };
+                                  targetOrders[absoluteIdx] = updatedOrder;
+                                  if (isImport) setImportOrders(targetOrders);
+                                  else {
+                                    setDbOrders(targetOrders);
+                                    const payloadForApi = { ...updatedOrder, product_detail: JSON.stringify(updatedOrder.items), items: undefined };
+                                    api.post('/partner/orders', { orders: [payloadForApi], target_shop_id: selectedShopId }).catch(err => console.error(err));
+                                  }
+                                }}
+                                className="w-full bg-yellow-50/50 border border-yellow-200/80 text-[10px] px-2 py-1.5 rounded-md outline-none focus:border-yellow-400 focus:bg-yellow-50 text-gray-700 placeholder-gray-400 shadow-sm mt-0.5"
+                              />
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </td>
-
                   <td className="p-4 font-extrabold text-gray-900 text-right">${displayPrice}</td>
 
                   <td className="p-4 text-center align-middle">

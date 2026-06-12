@@ -2155,30 +2155,66 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                         {/* Mặt Trước */}
                         <div className="flex gap-4 bg-white p-4 rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.03)] ring-1 ring-gray-100 transition-all hover:ring-blue-200">
                           <div className="relative group/img shrink-0">
-                            {/* Khung chứa ảnh: Xóa bg-gray-50, thêm style backgroundColor và viền border */}
-                            <div 
-                              className="w-20 h-20 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300"
-                              style={{ backgroundColor: getStandardColor(item.color) }}
-                            >
-                              {item.design_front ? (
-                                <img 
-                                  src={convertGoogleDriveUrl(item.design_front)} 
-                                  alt="Front" 
-                                  className="w-full h-full object-contain p-1" 
-                                  onError={(e) => { 
-                                    e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
-                                    e.currentTarget.onerror = null; // Chống lặp vô tận 100%
-                                  }} 
-                                />
-                              ) : <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Front</span>}
-                            </div>
-                            {item.design_front &&
-                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
-                                <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
-                                  <img src={convertGoogleDriveUrl(item.design_front)} alt="Preview" className="w-auto h-auto max-w-[200px] object-contain rounded-lg" style={{ backgroundColor: getStandardColor(item.color) }} />
-                                </div>
-                              </div>
-                            )}
+                            {(() => {
+                              // Tách biệt rạch ròi: Đâu là link ảnh, đâu là chữ ghi chú
+                              const isValidUrl = item.design_front && item.design_front.trim().toLowerCase().startsWith('http');
+                              const isNote = item.design_front && !isValidUrl;
+
+                              return (
+                                <>
+                                  {/* Khung chứa ảnh hoặc Ghi chú */}
+                                  <div 
+                                    className="w-20 h-20 rounded-xl shadow-inner flex items-center justify-center overflow-hidden cursor-help border border-gray-200 transition-colors duration-300 relative"
+                                    style={{ backgroundColor: getStandardColor(item.color) }}
+                                  >
+                                    {isValidUrl ? (
+                                      <img 
+                                        src={convertGoogleDriveUrl(item.design_front)} 
+                                        alt="Front" 
+                                        className="w-full h-full object-contain p-1" 
+                                        onError={(e) => { 
+                                          e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                          e.currentTarget.onerror = null; 
+                                        }} 
+                                      />
+                                    ) : isNote ? (
+                                      // Hiển thị tờ giấy Note nếu là ghi chú chữ
+                                      <div className="flex flex-col items-center justify-center p-2 w-full h-full bg-yellow-50/90 border-b-[3px] border-yellow-300">
+                                        <span className="text-[20px]">📝</span>
+                                        <span className="text-[9px] font-bold text-gray-700 leading-tight text-center line-clamp-2 w-full mt-1 px-1">{item.design_front}</span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Front</span>
+                                    )}
+                                  </div>
+
+                                  {/* Khung Phóng to (Tooltip) khi Hover */}
+                                  {isValidUrl ? (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                      <div className="bg-white p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-gray-200">
+                                        <img 
+                                          src={convertGoogleDriveUrl(item.design_front)} 
+                                          alt="Preview" 
+                                          className="w-auto h-auto max-w-[200px] object-contain rounded-lg" 
+                                          style={{ backgroundColor: getStandardColor(item.color) }}
+                                          onError={(e) => { 
+                                            e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                            e.currentTarget.onerror = null; 
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : isNote && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 hidden group-hover/img:block z-[999] pointer-events-none animate-in fade-in zoom-in duration-200">
+                                      <div className="bg-yellow-50 p-3 rounded-xl shadow-xl ring-1 ring-yellow-300 min-w-[150px] max-w-[250px]">
+                                        <div className="text-[11px] font-bold text-yellow-800 mb-1.5 uppercase border-b border-yellow-200 pb-1">Ghi chú (Front):</div>
+                                        <p className="text-[12px] text-gray-800 whitespace-pre-wrap">{item.design_front}</p>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                           <div className="flex-1 flex flex-col justify-center gap-1.5">
                             <label className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Mặt Trước</label>

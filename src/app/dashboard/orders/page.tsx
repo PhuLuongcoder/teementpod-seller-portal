@@ -233,7 +233,7 @@ export default function OrdersPage() {
   const { confirm, notify } = useConfirm();
   const { selectedShopId } = useShop();
   const [activeTab, setActiveTab] = useState<'list' | 'import'>('list');
-  const [imageError, setImageError] = useState<{ [key: string]: boolean }>({});
+
   // ==========================================
   // 1. STATE QUẢN LÝ
   // ==========================================
@@ -571,9 +571,10 @@ export default function OrdersPage() {
       }
 
       const response = await api.get('/partner/orders', { params });
-      setDbOrders(response.data.orders);
-      setTotalPages(response.data.totalPages);
-      setTotalCount(response.data.count);
+      // ĐÃ BỌC THÉP: Nếu API lỗi hoặc thiếu dữ liệu, ép nó về mảng rỗng [] thay vì undefined
+      setDbOrders(response.data?.orders || []);
+      setTotalPages(response.data?.totalPages || 1);
+      setTotalCount(response.data?.count || 0);
     } catch (error) {
       console.error("Lỗi tải danh sách:", error);
     } finally {
@@ -1397,7 +1398,18 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
               else if (order.status === 'cancelled') { badgeColor = 'bg-red-50 text-red-700 border-red-200'; } 
               else if (order.status === 'pending') { statusLabel = 'Chờ thanh toán'; }
               
-              const isFullyMapped = isOrderStrictlyValid(order);
+              const safeItems = (() => {
+                if (Array.isArray(order.items)) return order.items;
+                try {
+                  const pd = typeof order.product_detail === 'string' ? JSON.parse(order.product_detail) : order.product_detail;
+                  if (Array.isArray(pd)) return pd;
+                  if (pd?.items && Array.isArray(pd.items)) return pd.items;
+                } catch(e) {}
+                return [];
+              })();
+
+              // 2. Dùng safeItems để tính toán thay vì order.items
+              const isFullyMapped = safeItems.length > 0 && safeItems.every((item: any) => item.type && item.color && item.size);
               const displayPrice = isFullyMapped ? (order.order_price || 0) : 0;
               
               // CHỈ KHAI BÁO 1 LẦN DUY NHẤT ĐỂ TRÁNH SẬP WEB
@@ -1444,7 +1456,7 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                   {/* CỘT SẢN PHẨM & THIẾT KẾ ĐÃ GỘP CHUNG 1 THẺ CARD DUY NHẤT */}
                   <td className="p-4 align-top min-w-[500px] relative hover:z-[90]">
                     <div className="flex flex-col gap-4 py-1">
-                      {order.items?.map((item: any, itemIdx: number) => (
+                      {safeItems.map((item: any, itemIdx: number) => (
                         <div key={`${uniqueRowKey}-item-${itemIdx}`} className="flex gap-5 p-3 bg-white rounded-xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all relative group/itemcard">
                           
                           {/* NỬA TRÁI: SKU & HÌNH ẢNH */}
@@ -2109,7 +2121,15 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               style={{ backgroundColor: getStandardColor(item.color) }}
                             >
                               {item.design_front ? (
-                                <img src={imageError[`front-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_front)} alt="Front" className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({ ...prev, [`front-${index}`]: true }))} />
+                                <img 
+                                  src={convertGoogleDriveUrl(item.design_front)} 
+                                  alt="Front" 
+                                  className="w-full h-full object-contain p-1" 
+                                  onError={(e) => { 
+                                    e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                    e.currentTarget.onerror = null; // Chống lặp vô tận 100%
+                                  }} 
+                                />
                               ) : <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Front</span>}
                             </div>
                             {item.design_front && !imageError[`front-${index}`] && (
@@ -2134,7 +2154,15 @@ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
                               style={{ backgroundColor: getStandardColor(item.color) }}
                             >
                               {item.design_back ? (
-                                <img src={imageError[`back-${index}`] ? '/no-image.png' : convertGoogleDriveUrl(item.design_back)} alt="Back" className="w-full h-full object-contain p-1" onError={() => setImageError(prev => ({ ...prev, [`back-${index}`]: true }))} />
+                                <img 
+                                  src={convertGoogleDriveUrl(item.design_front)} 
+                                  alt="Back" 
+                                  className="w-full h-full object-contain p-1" 
+                                  onError={(e) => { 
+                                    e.currentTarget.src = 'https://placehold.co/150x150?text=No+Image'; 
+                                    e.currentTarget.onerror = null; // Chống lặp vô tận 100%
+                                  }} 
+                                />
                               ) : <span className="text-[9px] font-bold text-gray-600 text-center bg-white/80 backdrop-blur-sm px-2 py-1 rounded shadow-sm">No Img<br/>Back</span>}
                             </div>
                             {item.design_back && !imageError[`back-${index}`] && (

@@ -1,14 +1,16 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/axios';
 
-// Định nghĩa kiểu dữ liệu cho Đơn thiết kế
+// ==========================================
+// ĐỊNH NGHĨA KIỂU DỮ LIỆU
+// ==========================================
 type DesignOrder = {
   id: string;
-  original_image: string;
+  original_image: string; // Lưu trữ dưới dạng chuỗi JSON Array ["link1", "link2"]
   type: 'remake' | 'custom' | 'enhance';
   quantity: number;
   price: number;
@@ -18,6 +20,11 @@ type DesignOrder = {
   created_at: string;
 };
 
+type ImageItem = {
+  id: string;
+  url: string;
+};
+
 export default function ServiceDetailPage() {
   const params = useParams();
   const serviceId = params.id as string;
@@ -25,19 +32,16 @@ export default function ServiceDetailPage() {
   // ==========================================
   // STATE: THÔNG TIN DỊCH VỤ & TÀI CHÍNH
   // ==========================================
-  const [unitPrice, setUnitPrice] = useState<number>(0); // Lấy từ Admin Backend
-  const [totalServiceSpend, setTotalServiceSpend] = useState<number>(0); // Tổng chi tiêu dịch vụ
+  const [unitPrice, setUnitPrice] = useState<number>(0);
+  const [totalServiceSpend, setTotalServiceSpend] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
   // ==========================================
-  // STATE: FORM TẠO YÊU CẦU MỚI
+  // STATE: FORM TẠO YÊU CẦU MỚI (CHỈ SỬ DỤNG LINK)
   // ==========================================
-  const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imageList, setImageList] = useState<ImageItem[]>([]);
   const [imageUrlInput, setImageUrlInput] = useState('');
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
+  
   const [serviceType, setServiceType] = useState<'remake' | 'custom' | 'enhance'>('remake');
   const [quantity, setQuantity] = useState<number>(1);
   const [instructions, setInstructions] = useState('');
@@ -51,62 +55,88 @@ export default function ServiceDetailPage() {
   const [revisionNote, setRevisionNote] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
-  // Giả lập Fetch Data ban đầu
+  // ==========================================
+  // FETCH DATA BAN ĐẦU
+  // ==========================================
   useEffect(() => {
-  const fetchRealData = async () => {
-    try {
-      // 1. Lấy thông tin chi tiết dịch vụ (Tên, Giá)
-      const serviceRes = await api.get(`/partner/services/${serviceId}`);
-      setUnitPrice(serviceRes.data.service.price); 
+    const fetchRealData = async () => {
+      try {
+        // MOCK DATA (Thay thế bằng api.get khi nối Backend thật)
+        // const serviceRes = await api.get(`/partner/services/${serviceId}`);
+        setUnitPrice(5.00); 
+        
+        // const queueRes = await api.get('/partner/service-requests');
+        setQueue([]);
+        setTotalServiceSpend(125.00);
+      } catch (error) {
+        console.error("Lỗi:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchRealData();
+  }, [serviceId]);
 
-      // 2. Lấy hàng chờ Queue và tổng nợ dịch vụ
-      const queueRes = await api.get('/partner/service-requests');
-      setQueue(queueRes.data.requests);
-      setTotalServiceSpend(queueRes.data.total_debt);
-      
-    } catch (error) {
-      console.error("Lỗi:", error);
-    } finally {
-      setIsLoading(false);
+  // ==========================================
+  // XỬ LÝ DÁN LINK ĐA NĂNG
+  // ==========================================
+  const handleAddUrl = () => {
+    if (!imageUrlInput.trim()) return;
+    
+    // Tách các link bằng dấu phẩy, khoảng trắng, hoặc xuống dòng
+    const rawLinks = imageUrlInput.split(/[\n, ]+/);
+    const newImages: ImageItem[] = [];
+    
+    for (let link of rawLinks) {
+      const trimmed = link.trim();
+      if (trimmed.startsWith('http')) {
+        newImages.push({
+          id: Math.random().toString(36).substring(7),
+          url: trimmed
+        });
+      }
     }
-  };
-  fetchRealData();
-}, [serviceId]);
-
-  // ==========================================
-  // XỬ LÝ ẢNH & PREVIEW
-  // ==========================================
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      setUploadMethod('file');
+    
+    if (newImages.length > 0) {
+      setImageList(prev => [...prev, ...newImages]);
       setImageUrlInput('');
+    } else {
+      alert("Không tìm thấy link hợp lệ. Vui lòng bắt đầu bằng http:// hoặc https://");
     }
   };
 
-  const handleUrlBlur = () => {
-    if (imageUrlInput.trim().startsWith('http')) {
-      setPreviewUrl(imageUrlInput);
-      setSelectedFile(null);
-    }
+  const removeImage = (idToRemove: string) => {
+    setImageList(prev => prev.filter(img => img.id !== idToRemove));
   };
 
   // ==========================================
   // XỬ LÝ ACTIONS (SUBMIT, REVISION, APPROVE)
   // ==========================================
   const handleCreateRequest = async () => {
-    if (!previewUrl) return alert('Vui lòng cung cấp hình ảnh thiết kế!');
+    if (imageList.length === 0) return alert('Vui lòng cung cấp ít nhất một link hình ảnh!');
     if (quantity < 1) return alert('Số lượng không hợp lệ!');
 
     setIsSubmitting(true);
     try {
-      // payload = { serviceId, type, quantity, instructions, file / imageUrl }
-      // Mock add to queue:
+      // Ép mảng URL thành chuỗi JSON chuẩn để lưu DB
+      const urlArray = imageList.map(img => img.url);
+      const jsonStringifiedUrls = JSON.stringify(urlArray);
+
+      /* // GỌI API THẬT KHI ĐÃ SẴN SÀNG:
+      await api.post('/partner/service-requests', {
+        service_id: serviceId,
+        type: serviceType,
+        quantity,
+        price: quantity * unitPrice,
+        instructions,
+        original_image_url: jsonStringifiedUrls 
+      });
+      */
+
+      // Mock cập nhật UI Queue
       const newReq: DesignOrder = {
         id: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
-        original_image: previewUrl,
+        original_image: jsonStringifiedUrls,
         type: serviceType,
         quantity,
         price: quantity * unitPrice,
@@ -118,14 +148,12 @@ export default function ServiceDetailPage() {
       setQueue([newReq, ...queue]);
       
       // Reset Form
-      setSelectedFile(null);
+      setImageList([]);
       setImageUrlInput('');
-      setPreviewUrl(null);
       setQuantity(1);
       setInstructions('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
       
-      alert('Đã gửi yêu cầu thành công!');
+      alert('Đã gửi yêu cầu thiết kế thành công!');
     } catch (error) {
       console.error(error);
     } finally {
@@ -149,6 +177,12 @@ export default function ServiceDetailPage() {
   };
 
   const totalPrice = quantity * unitPrice;
+
+  // Helper để đọc mảng JSON lúc render Queue
+  const parseImages = (imgString: string) => {
+    try { return JSON.parse(imgString) as string[]; } 
+    catch { return [imgString]; }
+  };
 
   if (isLoading) return <div className="p-8 text-center animate-pulse">Đang tải cấu hình dịch vụ...</div>;
 
@@ -183,38 +217,59 @@ export default function ServiceDetailPage() {
         <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-fit space-y-6">
           <h2 className="font-extrabold text-gray-800 uppercase tracking-wide border-b pb-3 text-sm">Tạo yêu cầu mới</h2>
           
-          {/* 1. Upload Ảnh */}
+          {/* 1. Nhập Link Ảnh (Tối ưu cho Order Flow) */}
           <div className="space-y-3">
-            <label className="text-xs font-bold text-gray-500 uppercase">Hình ảnh thiết kế gốc *</label>
-            <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
-              <button type="button" onClick={() => setUploadMethod('file')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition ${uploadMethod === 'file' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Tải File</button>
-              <button type="button" onClick={() => setUploadMethod('url')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition ${uploadMethod === 'url' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Dán Link</button>
+            <div className="flex justify-between items-center">
+              <label className="text-xs font-bold text-gray-500 uppercase">Link Ảnh Thiết Kế Gốc *</label>
+              <span className="text-[10px] font-bold bg-[#C29017]/10 text-[#C29017] px-2 py-0.5 rounded">{imageList.length} link</span>
             </div>
-            
-            {uploadMethod === 'file' ? (
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-300 bg-gray-50 rounded-xl p-6 text-center cursor-pointer hover:border-[#C29017] hover:bg-[#C29017]/5 transition"
-              >
-                <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
-                <span className="text-2xl mb-2 block">📤</span>
-                <span className="text-xs font-bold text-gray-600 block">Click để chọn ảnh từ máy</span>
-              </div>
-            ) : (
-              <input 
-                type="text" 
-                placeholder="Dán link ảnh (http...)" 
+
+            <div className="flex gap-2 items-start">
+              <textarea 
+                rows={2}
+                placeholder="Dán link Google Drive, Imgur... (Có thể dán nhiều link cách nhau bởi khoảng trắng hoặc dấu phẩy)" 
                 value={imageUrlInput}
                 onChange={(e) => setImageUrlInput(e.target.value)}
-                onBlur={handleUrlBlur}
-                className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-xs outline-none focus:border-[#C29017]"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAddUrl();
+                  }
+                }}
+                className="flex-1 bg-gray-50 border border-gray-200 p-3 rounded-xl text-xs outline-none focus:border-[#C29017] resize-none"
               />
-            )}
+              <button 
+                onClick={handleAddUrl} 
+                className="bg-gray-900 text-white h-[60px] px-4 rounded-xl text-xs font-bold hover:bg-gray-800 transition shadow-sm"
+              >
+                Thêm
+              </button>
+            </div>
 
-            {previewUrl && (
-              <div className="relative w-full h-40 bg-gray-100 rounded-xl border border-gray-200 overflow-hidden group">
-                <img src={previewUrl} alt="Preview" className="w-full h-full object-contain" />
-                <button onClick={() => {setPreviewUrl(null); setSelectedFile(null); setImageUrlInput('');}} className="absolute top-2 right-2 bg-red-500 text-white w-6 h-6 rounded-full text-xs font-bold opacity-0 group-hover:opacity-100 transition">✕</button>
+            {/* Lưới hiển thị danh sách ảnh */}
+            {imageList.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 mt-3 p-2 bg-gray-50 rounded-xl border border-gray-100 max-h-[250px] overflow-y-auto">
+                {imageList.map((img) => (
+                  <div key={img.id} className="relative aspect-square bg-white rounded-lg border border-gray-200 overflow-hidden group shadow-sm flex items-center justify-center">
+                    <img 
+                      src={img.url} 
+                      alt="Preview" 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => { 
+                        e.currentTarget.src = 'https://placehold.co/150x150?text=Link'; 
+                      }}
+                    />
+                    <button 
+                      onClick={() => removeImage(img.id)} 
+                      className="absolute top-1 right-1 w-5 h-5 bg-red-500/90 text-white rounded-full text-[10px] font-black opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 flex items-center justify-center shadow-md"
+                    >
+                      ✕
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[7px] p-0.5 text-center truncate backdrop-blur-sm">
+                      {img.url.replace(/^https?:\/\/(www\.)?/, '')}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -259,7 +314,7 @@ export default function ServiceDetailPage() {
             </div>
             <button 
               onClick={handleCreateRequest}
-              disabled={isSubmitting || !previewUrl}
+              disabled={isSubmitting || imageList.length === 0}
               className="bg-[#C29017] text-white px-6 py-3 rounded-xl font-bold shadow-md hover:bg-[#a67b13] disabled:opacity-50 disabled:cursor-not-allowed transition active:scale-95"
             >
               {isSubmitting ? 'Đang xử lý...' : 'Xác nhận Yêu cầu'}
@@ -279,7 +334,7 @@ export default function ServiceDetailPage() {
               <thead className="bg-gray-50 text-[10px] uppercase font-bold text-gray-500 tracking-wider">
                 <tr>
                   <th className="p-4">Mã Đơn</th>
-                  <th className="p-4">Hình gốc</th>
+                  <th className="p-4">Danh sách Link</th>
                   <th className="p-4">Phân loại</th>
                   <th className="p-4 text-center">Trạng thái</th>
                   <th className="p-4 text-center">Thao tác duyệt</th>
@@ -288,46 +343,56 @@ export default function ServiceDetailPage() {
               <tbody className="text-sm divide-y divide-gray-100">
                 {queue.length === 0 ? (
                   <tr><td colSpan={5} className="p-8 text-center text-gray-400 italic">Chưa có yêu cầu nào.</td></tr>
-                ) : queue.map((req) => (
-                  <tr key={req.id} className="hover:bg-gray-50 transition">
-                    <td className="p-4 font-mono font-bold text-gray-900 text-xs">{req.id}</td>
-                    <td className="p-4">
-                      <div className="w-10 h-10 rounded-md bg-gray-100 border border-gray-200 overflow-hidden">
-                        <img src={req.original_image} alt="" className="w-full h-full object-cover" />
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="font-bold text-gray-800 uppercase text-[10px]">{req.type}</div>
-                      <div className="text-[10px] text-gray-500">SL: {req.quantity} | ${req.price}</div>
-                    </td>
-                    <td className="p-4 text-center">
-                      {req.status === 'in_process' && <span className="bg-blue-50 text-blue-600 px-2.5 py-1 rounded-md text-[10px] font-bold border border-blue-100 shadow-sm">Đang Xử Lý</span>}
-                      {req.status === 'waiting_approval' && <span className="bg-amber-50 text-amber-600 px-2.5 py-1 rounded-md text-[10px] font-bold border border-amber-200 shadow-sm animate-pulse">Đợi Duyệt</span>}
-                      {req.status === 'completed' && <span className="bg-green-50 text-green-600 px-2.5 py-1 rounded-md text-[10px] font-bold border border-green-100 shadow-sm">Hoàn Thành</span>}
-                    </td>
-                    <td className="p-4 text-center align-middle">
-                      {req.status === 'waiting_approval' ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => { setSelectedOrderId(req.id); setIsRevisionModalOpen(true); }} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition">
-                            Điều chỉnh
-                          </button>
-                          <button onClick={() => handleApprove(req.id)} className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm">
-                            Duyệt file
-                          </button>
-                          {req.result_link && (
-                            <a href={req.result_link} target="_blank" className="text-blue-500 hover:underline text-[10px] font-bold ml-1">Xem File</a>
+                ) : queue.map((req) => {
+                  const images = parseImages(req.original_image);
+                  return (
+                    <tr key={req.id} className="hover:bg-gray-50 transition">
+                      <td className="p-4 font-mono font-bold text-gray-900 text-xs">{req.id}</td>
+                      <td className="p-4">
+                        <div className="flex -space-x-2">
+                          {images.slice(0, 3).map((img, idx) => (
+                            <img key={idx} src={img} alt="" onError={(e) => e.currentTarget.src = 'https://placehold.co/150x150?text=Link'} className="w-10 h-10 rounded-full border-2 border-white object-cover bg-gray-100 shadow-sm" />
+                          ))}
+                          {images.length > 3 && (
+                            <div className="w-10 h-10 rounded-full border-2 border-white bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600 shadow-sm z-10">
+                              +{images.length - 3}
+                            </div>
                           )}
                         </div>
-                      ) : req.status === 'completed' ? (
-                         <a href={req.result_link} target="_blank" className="text-blue-500 hover:underline text-xs font-bold flex items-center justify-center gap-1">
-                           🔗 Tải File
-                         </a>
-                      ) : (
-                        <span className="text-gray-400 text-xs italic">Đợi Admin...</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-4">
+                        <div className="font-bold text-gray-800 uppercase text-[10px]">{req.type}</div>
+                        <div className="text-[10px] text-gray-500">SL: {req.quantity} | ${req.price}</div>
+                      </td>
+                      <td className="p-4 text-center">
+                        {req.status === 'in_process' && <span className="bg-blue-50 text-blue-600 px-2.5 py-1 rounded-md text-[10px] font-bold border border-blue-100 shadow-sm">Đang Xử Lý</span>}
+                        {req.status === 'waiting_approval' && <span className="bg-amber-50 text-amber-600 px-2.5 py-1 rounded-md text-[10px] font-bold border border-amber-200 shadow-sm animate-pulse">Đợi Duyệt</span>}
+                        {req.status === 'completed' && <span className="bg-green-50 text-green-600 px-2.5 py-1 rounded-md text-[10px] font-bold border border-green-100 shadow-sm">Hoàn Thành</span>}
+                      </td>
+                      <td className="p-4 text-center align-middle">
+                        {req.status === 'waiting_approval' ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={() => { setSelectedOrderId(req.id); setIsRevisionModalOpen(true); }} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                              Điều chỉnh
+                            </button>
+                            <button onClick={() => handleApprove(req.id)} className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm">
+                              Duyệt file
+                            </button>
+                            {req.result_link && (
+                              <a href={req.result_link} target="_blank" className="text-blue-500 hover:underline text-[10px] font-bold ml-1">Xem File</a>
+                            )}
+                          </div>
+                        ) : req.status === 'completed' ? (
+                           <a href={req.result_link} target="_blank" className="text-blue-500 hover:underline text-xs font-bold flex items-center justify-center gap-1">
+                             🔗 Tải File
+                           </a>
+                        ) : (
+                          <span className="text-gray-400 text-xs italic">Đợi Admin...</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

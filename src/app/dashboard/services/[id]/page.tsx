@@ -53,44 +53,25 @@ export default function ServiceDetailPage() {
 
   // Giả lập Fetch Data ban đầu
   useEffect(() => {
-    const fetchServiceData = async () => {
-      try {
-        // Gọi API lấy giá unitPrice của dịch vụ này từ Admin và danh sách Queue của Seller
-        // const res = await api.get(`/partner/services/${serviceId}`);
-        // Giả lập dữ liệu:
-        setUnitPrice(5.00); // 5$ / design
-        setTotalServiceSpend(125.00);
-        setQueue([
-          {
-            id: 'REQ-1001',
-            original_image: 'https://placehold.co/150',
-            type: 'remake',
-            quantity: 1,
-            price: 5.00,
-            instructions: 'Bỏ background đen',
-            status: 'waiting_approval',
-            result_link: 'https://drive.google.com/file/...',
-            created_at: new Date().toISOString()
-          },
-          {
-            id: 'REQ-1002',
-            original_image: 'https://placehold.co/150',
-            type: 'enhance',
-            quantity: 2,
-            price: 10.00,
-            instructions: 'Làm nét up lên 4K',
-            status: 'in_process',
-            created_at: new Date().toISOString()
-          }
-        ]);
-      } catch (error) {
-        console.error("Lỗi:", error);
-      } finally {
-        setIsLoading(false); 
-      }
-    };
-    fetchServiceData();
-  }, [serviceId]);
+  const fetchRealData = async () => {
+    try {
+      // 1. Lấy thông tin chi tiết dịch vụ (Tên, Giá)
+      const serviceRes = await api.get(`/partner/services/${serviceId}`);
+      setUnitPrice(serviceRes.data.service.price); 
+
+      // 2. Lấy hàng chờ Queue và tổng nợ dịch vụ
+      const queueRes = await api.get('/partner/service-requests');
+      setQueue(queueRes.data.requests);
+      setTotalServiceSpend(queueRes.data.total_debt);
+      
+    } catch (error) {
+      console.error("Lỗi:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  fetchRealData();
+}, [serviceId]);
 
   // ==========================================
   // XỬ LÝ ẢNH & PREVIEW

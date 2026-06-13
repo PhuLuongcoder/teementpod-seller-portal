@@ -86,7 +86,7 @@ export default function ServiceDetailPage() {
       } catch (error) {
         console.error("Lỗi:", error);
       } finally {
-        setLoading(false);
+        setIsLoading(false); 
       }
     };
     fetchServiceData();

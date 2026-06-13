@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import api from '@/lib/axios';
 
 type ExtraService = {
@@ -101,14 +102,16 @@ export default function ServicesPage() {
                   ))}
                 </div>
 
-                <a 
-                  href={SUPPORT_LINK} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="block w-full text-center py-2.5 rounded-xl text-sm font-bold text-gray-700 bg-gray-50 hover:bg-gray-900 hover:text-white transition-colors border border-gray-200 hover:border-gray-900"
+                {/* Đã thay đổi thành Link nội bộ của Next.js và update UI */}
+                <Link 
+                  href={`/dashboard/services/${service.id}`}
+                  className="inline-flex items-center justify-center bg-[#C29017] text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-[0_8px_20px_-6px_rgba(194,144,23,0.5)] hover:bg-[#a67b13] hover:shadow-[0_10px_25px_-6px_rgba(194,144,23,0.6)] hover:-translate-y-0.5 transition-all active:scale-95 group w-full"
                 >
-                  Nhận Báo Giá
-                </a>
+                  Tiến hành
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                  </svg>
+                </Link>
               </div>
             </div>
           ))}

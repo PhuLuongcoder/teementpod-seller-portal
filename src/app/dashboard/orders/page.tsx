@@ -1512,31 +1512,63 @@ export default function OrdersPage() {
                                 })}
                               </div>
                   
-                              <div className="flex flex-col gap-1.5 mt-auto">
-                                <input
-                                  key={`front-${uniqueRowKey}-${itemIdx}-${item.design_front || 'empty'}`}
-                                  type="text"
-                                  disabled={isRowLocked}
-                                  placeholder="🔗 Link Design Mặt Trước..."
-                                  defaultValue={item.design_front || ''}
-                                  onBlur={(e) => {
-                                    if (e.target.value === item.design_front) return;
-                                    updateInlineItem(absoluteIdx, itemIdx, { design_front: e.target.value });
-                                  }}
-                                  className="w-full text-[9px] px-2 py-1.5 bg-blue-50/30 border border-blue-100/50 rounded-md outline-none focus:border-blue-400 focus:bg-blue-50 text-gray-700 transition-all placeholder-gray-400 shadow-sm"
-                                />
-                                <input
-                                  key={`back-${uniqueRowKey}-${itemIdx}-${item.design_back || 'empty'}`}
-                                  type="text"
-                                  disabled={isRowLocked}
-                                  placeholder="Link Design Mặt Sau (Nếu có)..."
-                                  defaultValue={item.design_back || ''}
-                                  onBlur={(e) => {
-                                    if (e.target.value === item.design_back) return;
-                                    updateInlineItem(absoluteIdx, itemIdx, { design_back: e.target.value });
-                                  }}
-                                  className="w-full text-[9px] px-2 py-1.5 bg-blue-50/30 border border-blue-100/50 rounded-md outline-none focus:border-blue-400 focus:bg-blue-50 text-gray-700 transition-all placeholder-gray-400 shadow-sm"
-                                />
+                              {/* KHỐI NHẬP LINK RÚT GỌN (FRONT / BACK / MOCKUP) */}
+                              <div className="flex flex-col gap-1 mt-auto bg-gray-50/80 p-1.5 rounded-lg border border-gray-100 shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]">
+                                
+                                {/* 1. Link Front */}
+                                <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded px-1.5 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400/20 transition-all">
+                                  <span className="text-[8.5px] font-extrabold text-blue-500 w-11 shrink-0 uppercase tracking-tight text-center">Front</span>
+                                  <div className="w-px h-3 bg-gray-200 shrink-0"></div>
+                                  <input
+                                    key={`front-${uniqueRowKey}-${itemIdx}-${item.design_front || 'empty'}`}
+                                    type="text"
+                                    disabled={isRowLocked}
+                                    placeholder="Dán link..."
+                                    defaultValue={item.design_front || ''}
+                                    onBlur={(e) => {
+                                      if (e.target.value === item.design_front) return;
+                                      updateInlineItem(absoluteIdx, itemIdx, { design_front: e.target.value });
+                                    }}
+                                    className="w-full text-[9.5px] py-1 bg-transparent outline-none text-gray-700 placeholder-gray-300 font-medium"
+                                  />
+                                </div>
+
+                                {/* 2. Link Back */}
+                                <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded px-1.5 focus-within:border-purple-400 focus-within:ring-1 focus-within:ring-purple-400/20 transition-all">
+                                  <span className="text-[8.5px] font-extrabold text-purple-500 w-11 shrink-0 uppercase tracking-tight text-center">Back</span>
+                                  <div className="w-px h-3 bg-gray-200 shrink-0"></div>
+                                  <input
+                                    key={`back-${uniqueRowKey}-${itemIdx}-${item.design_back || 'empty'}`}
+                                    type="text"
+                                    disabled={isRowLocked}
+                                    placeholder="Dán link..."
+                                    defaultValue={item.design_back || ''}
+                                    onBlur={(e) => {
+                                      if (e.target.value === item.design_back) return;
+                                      updateInlineItem(absoluteIdx, itemIdx, { design_back: e.target.value });
+                                    }}
+                                    className="w-full text-[9.5px] py-1 bg-transparent outline-none text-gray-700 placeholder-gray-300 font-medium"
+                                  />
+                                </div>
+
+                                {/* 3. Link Mockup (MỚI THÊM) */}
+                                <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded px-1.5 focus-within:border-teal-500 focus-within:ring-1 focus-within:ring-teal-500/20 transition-all">
+                                  <span className="text-[8.5px] font-extrabold text-teal-600 w-11 shrink-0 uppercase tracking-tight text-center">Mockup</span>
+                                  <div className="w-px h-3 bg-gray-200 shrink-0"></div>
+                                  <input
+                                    key={`mockup-${uniqueRowKey}-${itemIdx}-${item.mockup || 'empty'}`}
+                                    type="text"
+                                    disabled={isRowLocked}
+                                    placeholder="Dán link..."
+                                    defaultValue={item.mockup || ''}
+                                    onBlur={(e) => {
+                                      if (e.target.value === item.mockup) return;
+                                      updateInlineItem(absoluteIdx, itemIdx, { mockup: e.target.value });
+                                    }}
+                                    className="w-full text-[9.5px] py-1 bg-transparent outline-none text-gray-700 placeholder-gray-300 font-medium"
+                                  />
+                                </div>
+                                
                               </div>
                             </div>
                   

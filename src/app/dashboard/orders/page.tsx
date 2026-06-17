@@ -247,18 +247,52 @@ export default function OrdersPage() {
   const [podBlanks, setPodBlanks] = useState<any[]>([]);
   
   const isOrderStrictlyValid = (order: any) => {
-    if (!order.items || order.items.length === 0) return false;
-    return order.items.every((it: any) => {
+    // 1. Phân tích an toàn danh sách items
+    let items: any[] = [];
+    try {
+      if (Array.isArray(order.items) && order.items.length > 0) {
+        items = order.items;
+      } else if (order.product_detail) {
+        const pd = typeof order.product_detail === 'string' ? JSON.parse(order.product_detail) : order.product_detail;
+        if (Array.isArray(pd)) items = pd;
+        else if (pd && Array.isArray(pd.items)) items = pd.items;
+        else items = [pd];
+      }
+    } catch (e) {}
+
+    if (items.length === 0) return false;
+
+    let calculatedPrice = 0;
+
+    const itemsValid = items.every((it: any) => {
+      // ĐIỀU KIỆN 1: Phải có Type, Color, Size
       if (!it.type || !it.color || !it.size) return false;
+      
+      // ĐIỀU KIỆN 2: Bắt buộc phải có ít nhất 1 link thiết kế (Mặt trước hoặc mặt sau)
+      if (!it.design_front && !it.design_back) return false;
+
+      // ĐIỀU KIỆN 3: Phôi phải có thật trên hệ thống
       const blank = podBlanks.find(b => b.name === it.type);
       if (!blank) return false;
+
+      // Cộng dồn tính toán giá
+      if (blank.display_price) {
+        calculatedPrice += (blank.display_price * (it.quantity || 1));
+      }
+
+      // ĐIỀU KIỆN 4: Size phải khớp với bảng Size của Phôi
       try {
         const validSizes = Array.isArray(blank.sizes) ? blank.sizes : (JSON.parse(blank.sizes || '[]'));
         const sizeMatch = validSizes.some((s: string) => s.toLowerCase() === it.size.trim().toLowerCase());
         if (!sizeMatch) return false;
       } catch (e) { return false; }
+      
       return true;
     });
+
+    // ĐIỀU KIỆN TỐI THƯỢNG: Tổng giá trị đơn hàng phải LỚN HƠN $0
+    const finalPrice = calculatedPrice > 0 ? calculatedPrice : (order.order_price || 0);
+    return itemsValid && finalPrice > 0;
   };
 
   const [isLoadingList, setIsLoadingList] = useState(false);
@@ -431,7 +465,7 @@ export default function OrdersPage() {
     const invalidCount = selectedRows.length - validOrders.length;
 
     if (validOrders.length === 0) {
-      return alert("Tất cả các đơn bạn chọn đều chưa được map Phôi/Màu/Size. Vui lòng bấm 'Sửa' từng đơn để chọn sản phẩm trước khi thanh toán!");
+      return alert("Tất cả các đơn bạn chọn đều chưa hợp lệ!\nVui lòng kiểm tra: Cần đủ Phôi/Màu/Size, CÓ link thiết kế và Đơn giá > $0.");
     }
 
     let confirmMessage = `Tiến hành thanh toán chi phí sản xuất cho ${validOrders.length} đơn hàng hợp lệ?`;
@@ -487,7 +521,7 @@ export default function OrdersPage() {
       const invalidCount = pendingOrders.length - validPendingOrders.length;
 
       if (validPendingOrders.length === 0) {
-        notify(`Có ${invalidCount} đơn pending nhưng TẤT CẢ đều chưa cấu hình Phôi/Màu/Size. Giao dịch đã bị hủy!`);
+        notify(`Có ${invalidCount} đơn pending nhưng TẤT CẢ đều chưa hợp lệ (Thiếu Phôi/Màu/Size, Link Design hoặc Giá = $0). Giao dịch đã bị hủy!`);
         setIsAddingToPay(false);
         return;
       }
@@ -837,12 +871,25 @@ export default function OrdersPage() {
           }
         });
 
-        const finalOrders = Array.from(ordersMap.values()).map(order => ({
-          ...order,
-          product_type: order.items.length > 1 
-            ? `${order.items[0].type} (+${order.items.length - 1} món khác)` 
-            : order.items[0].type
-        }));
+        const finalOrders = Array.from(ordersMap.values()).map((order: any) => {
+          let tempPrice = 0;
+          if (order.items) {
+            order.items.forEach((it: any) => {
+              const blank = podBlanks.find(b => b.name === it.type);
+              if (blank && blank.display_price) {
+                tempPrice += blank.display_price * (it.quantity || 1);
+              }
+            });
+          }
+          
+          return {
+            ...order,
+            order_price: tempPrice, // <-- Fix: Gán giá trị thật luôn từ lúc Import
+            product_type: order.items && order.items.length > 1 
+              ? `${order.items[0].type} (+${order.items.length - 1} món khác)` 
+              : (order.items?.[0]?.type || '')
+          };
+        });
 
         setImportOrders(finalOrders);
         setImportCurrentPage(1);
@@ -1219,7 +1266,7 @@ export default function OrdersPage() {
 
     const handlePaySingleOrder = async (order: any) => {
       const isValid = isOrderStrictlyValid(order);
-      if (!isValid) return alert("Đơn hàng chưa được cấu hình đủ Phôi/Màu/Size hợp lệ.");
+      if (!isValid) return alert("Đơn hàng chưa hợp lệ!\nVui lòng kiểm tra: \n1. Đã chọn đủ Phôi/Màu/Size.\n2. CÓ link thiết kế (Mặt trước/sau).\n3. Đơn giá phải lớn hơn $0.");
       
       const isConfirmed = await confirm({ title: "Xác nhận thanh toán", message: `Bạn muốn thanh toán đơn ${order.external_order_id}?`, confirmText: "Thanh toán ngay" });
       if (!isConfirmed) return;

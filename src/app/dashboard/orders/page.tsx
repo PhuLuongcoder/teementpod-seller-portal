@@ -999,6 +999,7 @@ export default function OrdersPage() {
       design_front: item.design_front || '',
       design_back: item.design_back || '',
       mockup: item.mockup || '',
+      note: item.note || '',
       extra_print_areas: Array.isArray(item.extra_print_areas) ? item.extra_print_areas : [],
       original_string: item.original_string || '',
     });
@@ -1622,24 +1623,17 @@ export default function OrdersPage() {
                               </div>
                   
                               <input
-                                key={`note-${uniqueRowKey}-${itemIdx}`}
+                                key={`item-note-${uniqueRowKey}-${itemIdx}`}
                                 type="text"
                                 disabled={isRowLocked}
-                                placeholder="✏️ Thêm ghi chú cho hệ thống..."
-                                defaultValue={order.order_note || ''}
+                                placeholder="✏️ Ghi chú riêng cho sản phẩm này..."
+                                defaultValue={item.note || ''}
                                 onBlur={(e) => {
-                                  if (e.target.value === order.order_note) return;
-                                  const targetOrders = isImport ? [...importOrders] : [...dbOrders];
-                                  const updatedOrder = { ...targetOrders[absoluteIdx], order_note: e.target.value };
-                                  targetOrders[absoluteIdx] = updatedOrder;
-                                  if (isImport) setImportOrders(targetOrders);
-                                  else {
-                                    setDbOrders(targetOrders);
-                                    const payloadForApi = { ...updatedOrder, product_detail: JSON.stringify(updatedOrder.items), items: undefined };
-                                    api.post('/partner/orders', { orders: [payloadForApi], target_shop_id: selectedShopId }).catch(err => console.error(err));
-                                  }
+                                  if (e.target.value === (item.note || '')) return;
+                                  // Lưu trực tiếp vào trường item.note thông qua hàm updateInlineItem cực gọn
+                                  updateInlineItem(absoluteIdx, itemIdx, { note: e.target.value });
                                 }}
-                                className="w-full bg-yellow-50/50 border border-yellow-200/80 text-[10px] px-2 py-1.5 rounded-md outline-none focus:border-yellow-400 focus:bg-yellow-50 text-gray-700 placeholder-gray-400 shadow-sm mt-0.5"
+                                className="w-full bg-yellow-50/50 border border-yellow-200/80 text-[10px] px-2 py-1.5 rounded-md outline-none focus:border-yellow-400 focus:bg-yellow-50 text-gray-700 placeholder-gray-400 shadow-sm mt-1"
                               />
                             </div>
                           </div>
@@ -2017,7 +2011,7 @@ export default function OrdersPage() {
                   {!isReadOnly && (
                     <button
                       onClick={() => {
-                        const newItem = { sku: '', type: '', color: '', size: '', quantity: 1, design_front: '', design_back: '', mockup: '', extra_print_areas: [] };
+                        const newItem = { sku: '', type: '', color: '', size: '', quantity: 1, design_front: '', design_back: '', mockup: '', , note: '', extra_print_areas: [] };
                         setEditForm({ ...editForm, items: [...(editForm.items || []), newItem] });
                       }}
                       className="text-xs bg-white shadow-sm ring-1 ring-gray-200 px-4 py-2 rounded-xl text-gray-700 font-bold hover:shadow-md hover:text-[#C29017] hover:ring-[#C29017]/30 transition-all"
@@ -2408,6 +2402,23 @@ export default function OrdersPage() {
                             ))}
                           </div>
                         )}
+                      </div>
+                      {/* HÀNG 5: GHI CHÚ RIÊNG CHO SẢN PHẨM */}
+                      <div className="pt-4 border-t border-gray-100 mt-2">
+                        <label className="text-[10px] text-gray-500 font-bold uppercase tracking-widest block mb-2">
+                          Ghi chú riêng cho sản phẩm này
+                        </label>
+                        <textarea
+                          disabled={isReadOnly}
+                          placeholder="Nhập yêu cầu đặc biệt (VD: In lệch trái, viền mỏng, chú ý màu sắc...)"
+                          value={item.note || ''}
+                          onChange={(e) => {
+                            const newItems = [...editForm.items];
+                            newItems[index] = { ...newItems[index], note: e.target.value };
+                            setEditForm({ ...editForm, items: newItems });
+                          }}
+                          className="w-full bg-yellow-50/30 ring-1 ring-yellow-200/60 p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-yellow-400 focus:bg-yellow-50 text-gray-800 transition-all min-h-[60px]"
+                        />
                       </div>
                     </div>
                   );

@@ -2011,7 +2011,7 @@ export default function OrdersPage() {
                   {!isReadOnly && (
                     <button
                       onClick={() => {
-                        const newItem = { sku: '', type: '', color: '', size: '', quantity: 1, design_front: '', design_back: '', mockup: '', , note: '', extra_print_areas: [] };
+                        const newItem = { sku: '', type: '', color: '', size: '', quantity: 1, design_front: '', design_back: '', mockup: '', note: '', extra_print_areas: [] };
                         setEditForm({ ...editForm, items: [...(editForm.items || []), newItem] });
                       }}
                       className="text-xs bg-white shadow-sm ring-1 ring-gray-200 px-4 py-2 rounded-xl text-gray-700 font-bold hover:shadow-md hover:text-[#C29017] hover:ring-[#C29017]/30 transition-all"

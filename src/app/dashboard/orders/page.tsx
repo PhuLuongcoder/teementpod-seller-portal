@@ -465,7 +465,12 @@ export default function OrdersPage() {
     const invalidCount = selectedRows.length - validOrders.length;
 
     if (validOrders.length === 0) {
-      return alert("Tất cả các đơn bạn chọn đều chưa hợp lệ!\nVui lòng kiểm tra: Cần đủ Phôi/Màu/Size, CÓ link thiết kế và Đơn giá > $0.");
+      await confirm({
+        title: "Không có đơn hàng hợp lệ",
+        message: "Tất cả các đơn bạn vừa tick chọn đều chưa đủ thông tin sản xuất (Thiếu Phôi/Màu/Size, Link thiết kế, hoặc Giá $0).\n\nBạn vui lòng kiểm tra và điền đầy đủ thông tin ngoài bảng trước khi tiến hành thanh toán nhé!",
+        confirmText: "Đã hiểu",
+      });
+      return;
     }
 
     let confirmMessage = `Tiến hành thanh toán chi phí sản xuất cho ${validOrders.length} đơn hàng hợp lệ?`;
@@ -521,7 +526,11 @@ export default function OrdersPage() {
       const invalidCount = pendingOrders.length - validPendingOrders.length;
 
       if (validPendingOrders.length === 0) {
-        notify(`Có ${invalidCount} đơn pending nhưng TẤT CẢ đều chưa hợp lệ (Thiếu Phôi/Màu/Size, Link Design hoặc Giá = $0). Giao dịch đã bị hủy!`);
+        await confirm({
+          title: "Giao dịch bị tạm dừng",
+          message: `Hệ thống ghi nhận có ${invalidCount} đơn đang chờ thanh toán, nhưng TẤT CẢ đều chưa điền đủ thông tin sản xuất (Thiếu Phôi/Màu/Size, Link Design hoặc Giá vẫn đang $0).\n\nBạn vui lòng hoàn thiện thông tin cho các đơn này trước khi thanh toán hàng loạt nhé!`,
+          confirmText: "Đã hiểu",
+        });
         setIsAddingToPay(false);
         return;
       }
@@ -1267,7 +1276,14 @@ export default function OrdersPage() {
 
     const handlePaySingleOrder = async (order: any) => {
       const isValid = isOrderStrictlyValid(order);
-      if (!isValid) return alert("Đơn hàng chưa hợp lệ!\nVui lòng kiểm tra: \n1. Đã chọn đủ Phôi/Màu/Size.\n2. CÓ link thiết kế (Mặt trước/sau).\n3. Đơn giá phải lớn hơn $0.");
+      if (!isValid) {
+        await confirm({
+          title: "Chưa thể thanh toán đơn hàng",
+          message: "Đơn hàng này chưa đủ điều kiện để sản xuất. Bạn vui lòng kiểm tra và bổ sung các thông tin sau nhé:\n\n• Chọn đầy đủ Loại sản phẩm (Phôi), Màu sắc và Kích cỡ.\n• Cung cấp ít nhất 1 Link thiết kế (Front/Back).\n• Đảm bảo tổng đơn giá lớn hơn $0.\n\nSau khi điền đủ thông tin, hệ thống sẽ tự động mở khóa nút thanh toán!",
+          confirmText: "Tôi đã hiểu",
+        });
+        return;
+      }
       
       const isConfirmed = await confirm({ title: "Xác nhận thanh toán", message: `Bạn muốn thanh toán đơn ${order.external_order_id}?`, confirmText: "Thanh toán ngay" });
       if (!isConfirmed) return;

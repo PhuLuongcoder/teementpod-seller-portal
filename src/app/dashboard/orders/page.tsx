@@ -1304,7 +1304,6 @@ export default function OrdersPage() {
               <ul className="list-disc pl-5 space-y-2 font-medium text-red-600">
                 <li>Chọn đầy đủ <span className="font-extrabold underline underline-offset-2">Phôi, Màu sắc và Kích cỡ</span>.</li>
                 <li>Cung cấp ít nhất <span className="font-extrabold underline underline-offset-2">1 Link thiết kế</span> (Front hoặc Back).</li>
-                <li>Đảm bảo tổng đơn giá <span className="font-extrabold underline underline-offset-2">lớn hơn $0</span>.</li>
               </ul>
               <p className="italic text-gray-500 mt-2 bg-gray-50 p-2 rounded-lg text-xs">💡 Mẹo: Hệ thống sẽ tự động mở khóa nút Thanh toán ngay khi bạn điền đủ các thông tin trên!</p>
             </div>

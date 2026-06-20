@@ -1285,6 +1285,7 @@ export default function OrdersPage() {
       const newItems = [...(order.items || [])];
       newItems[itemIdx] = { ...newItems[itemIdx], ...updates };
 
+      // Khớp màu và size nếu đổi Phôi
       if (updates.type) {
         const newBlank = podBlanks.find(b => b.name === updates.type);
         if (newBlank) {
@@ -1300,23 +1301,45 @@ export default function OrdersPage() {
         }
       }
 
+      // Tính lại tổng tiền
       let tempPrice = 0;
       newItems.forEach((it: any) => {
         const blank = podBlanks.find(b => b.name === it.type);
         if (blank && blank.display_price) tempPrice += blank.display_price * (it.quantity || 1);
       });
+      
       order.order_price = tempPrice > 0 ? tempPrice : order.order_price;
       order.product_type = newItems.length > 1 ? `${newItems[0]?.type} (+${newItems.length - 1} món khác)` : (newItems[0]?.type || '');
       order.items = newItems;
+      
+      // 🔥 FIX 1: Cập nhật luôn chuỗi JSON để đồng bộ nội bộ React State
+      order.product_detail = JSON.stringify(newItems);
+      
       targetOrders[absoluteIdx] = order;
 
-      if (isImport) { setImportOrders(targetOrders); } 
-      else {
+      if (isImport) { 
+        setImportOrders(targetOrders); 
+      } else {
         setDbOrders(targetOrders);
         try {
-          const payloadForApi = { ...order, product_detail: JSON.stringify(order.items), items: undefined };
-          await api.post('/partner/orders', { orders: [payloadForApi], target_shop_id: selectedShopId });
-        } catch(e) { console.error("Lỗi auto-save", e); }
+          // 🔥 FIX 2: Bóc tách rác, CHỈ gửi đúng 5 trường cốt lõi lên Server. 
+          // Tuyệt đối không gửi "...order" để tránh Backend từ chối do kẹt chuỗi shipping_address
+          const payloadForApi = { 
+            id: order.id,
+            external_order_id: order.external_order_id,
+            order_price: order.order_price,
+            product_type: order.product_type,
+            product_detail: order.product_detail
+          };
+          
+          await api.post('/partner/orders', { 
+            orders: [payloadForApi], 
+            target_shop_id: selectedShopId 
+          });
+        } catch(e) { 
+          console.error("Lỗi auto-save Inline:", e);
+          alert("Dữ liệu sửa nhanh chưa được lưu vào Server do lỗi mạng. Vui lòng thử lại!");
+        }
       }
     };
 

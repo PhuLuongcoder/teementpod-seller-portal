@@ -1282,10 +1282,28 @@ export default function OrdersPage() {
     const updateInlineItem = async (absoluteIdx: number, itemIdx: number, updates: any) => {
       const targetOrders = isImport ? [...importOrders] : [...dbOrders];
       const order = { ...targetOrders[absoluteIdx] };
-      const newItems = [...(order.items || [])];
+
+      // 🔥 BƯỚC 1: KHÔI PHỤC DỮ LIỆU GỐC TỪ JSON (Sửa lỗi Wipeout xóa trắng dữ liệu)
+      let currentItems = order.items;
+      if (!currentItems || !Array.isArray(currentItems) || currentItems.length === 0) {
+        try {
+          const pd = typeof order.product_detail === 'string' ? JSON.parse(order.product_detail) : order.product_detail;
+          if (Array.isArray(pd)) currentItems = pd;
+          else if (pd?.items && Array.isArray(pd.items)) currentItems = pd.items;
+          else currentItems = [pd];
+        } catch(e) {
+          currentItems = [];
+        }
+      }
+      const newItems = [...(currentItems || [])];
+
+      // Bảo vệ mảng nếu rỗng
+      if (!newItems[itemIdx]) newItems[itemIdx] = {};
+
+      // Cập nhật trường mới mà KHÔNG làm mất Link Design hay Size cũ
       newItems[itemIdx] = { ...newItems[itemIdx], ...updates };
 
-      // Khớp màu và size nếu đổi Phôi
+      // 🔥 BƯỚC 2: KHỚP MÀU & SIZE KHI ĐỔI PHÔI
       if (updates.type) {
         const newBlank = podBlanks.find(b => b.name === updates.type);
         if (newBlank) {
@@ -1301,18 +1319,21 @@ export default function OrdersPage() {
         }
       }
 
-      // Tính lại tổng tiền
+      // 🔥 BƯỚC 3: TÍNH LẠI TỔNG TIỀN (Quét khắt khe)
       let tempPrice = 0;
       newItems.forEach((it: any) => {
-        const blank = podBlanks.find(b => b.name === it.type);
-        if (blank && blank.display_price) tempPrice += blank.display_price * (it.quantity || 1);
+        const blank = podBlanks.find(b => (b.name || '').trim() === (it.type || '').trim());
+        if (blank) {
+          const itemPrice = Number(blank.display_price || blank.price || blank.base_price || 0);
+          tempPrice += itemPrice * (Number(it.quantity) || 1);
+        }
       });
       
       order.order_price = tempPrice > 0 ? tempPrice : order.order_price;
       order.product_type = newItems.length > 1 ? `${newItems[0]?.type} (+${newItems.length - 1} món khác)` : (newItems[0]?.type || '');
       order.items = newItems;
       
-      // 🔥 FIX 1: Cập nhật luôn chuỗi JSON để đồng bộ nội bộ React State
+      // Đồng bộ vào chuỗi JSON
       order.product_detail = JSON.stringify(newItems);
       
       targetOrders[absoluteIdx] = order;
@@ -1321,9 +1342,9 @@ export default function OrdersPage() {
         setImportOrders(targetOrders); 
       } else {
         setDbOrders(targetOrders);
+        
+        // 🔥 BƯỚC 4: GỬI GÓI DATA SẠCH LÊN SERVER
         try {
-          // 🔥 FIX 2: Bóc tách rác, CHỈ gửi đúng 5 trường cốt lõi lên Server. 
-          // Tuyệt đối không gửi "...order" để tránh Backend từ chối do kẹt chuỗi shipping_address
           const payloadForApi = { 
             id: order.id,
             external_order_id: order.external_order_id,
@@ -1338,7 +1359,6 @@ export default function OrdersPage() {
           });
         } catch(e) { 
           console.error("Lỗi auto-save Inline:", e);
-          alert("Dữ liệu sửa nhanh chưa được lưu vào Server do lỗi mạng. Vui lòng thử lại!");
         }
       }
     };

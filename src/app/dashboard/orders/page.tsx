@@ -1327,7 +1327,7 @@ export default function OrdersPage() {
       const targetOrders = isImport ? [...importOrders] : [...dbOrders];
       const order = { ...targetOrders[absoluteIdx] };
 
-      // 🔥 BƯỚC 1: KHÔI PHỤC DỮ LIỆU GỐC TỪ JSON (Sửa lỗi Wipeout xóa trắng dữ liệu)
+      // 1. Phục hồi trí nhớ: Lôi dữ liệu cũ ra để không bị xóa mất Phôi/Link khi chọn Màu/Size
       let currentItems = order.items;
       if (!currentItems || !Array.isArray(currentItems) || currentItems.length === 0) {
         try {
@@ -1339,15 +1339,14 @@ export default function OrdersPage() {
           currentItems = [];
         }
       }
+      
       const newItems = [...(currentItems || [])];
-
-      // Bảo vệ mảng nếu rỗng
       if (!newItems[itemIdx]) newItems[itemIdx] = {};
 
-      // Cập nhật trường mới mà KHÔNG làm mất Link Design hay Size cũ
+      // Cập nhật thông tin bác vừa gõ
       newItems[itemIdx] = { ...newItems[itemIdx], ...updates };
 
-      // 🔥 BƯỚC 2: KHỚP MÀU & SIZE KHI ĐỔI PHÔI
+      // Khớp màu/size nếu có chọn Phôi mới
       if (updates.type) {
         const newBlank = podBlanks.find(b => b.name === updates.type);
         if (newBlank) {
@@ -1363,7 +1362,7 @@ export default function OrdersPage() {
         }
       }
 
-      // 🔥 BƯỚC 3: TÍNH LẠI TỔNG TIỀN (Quét khắt khe)
+      // 2. Tự nhẩm tính tiền ngay lập tức
       let tempPrice = 0;
       newItems.forEach((it: any) => {
         const blank = podBlanks.find(b => (b.name || '').trim() === (it.type || '').trim());
@@ -1373,11 +1372,10 @@ export default function OrdersPage() {
         }
       });
       
-      order.order_price = tempPrice > 0 ? tempPrice : order.order_price;
+      // Ép thẳng giá tiền mới vào đơn
+      order.order_price = tempPrice;
       order.product_type = newItems.length > 1 ? `${newItems[0]?.type} (+${newItems.length - 1} món khác)` : (newItems[0]?.type || '');
       order.items = newItems;
-      
-      // Đồng bộ vào chuỗi JSON
       order.product_detail = JSON.stringify(newItems);
       
       targetOrders[absoluteIdx] = order;
@@ -1387,11 +1385,23 @@ export default function OrdersPage() {
       } else {
         setDbOrders(targetOrders);
         
-        // 🔥 BƯỚC 4: GỬI GÓI DATA SẠCH LÊN SERVER
+        // 3. Đẩy lên Server (Và gọi lại hàm fetch để đồng bộ y hệt Popup)
         try {
+          // Xử lý mượt cái địa chỉ để tránh lỗi 400 của Backend
+          let safeAddress = order.shipping_address;
+          if (typeof safeAddress === 'string') {
+            try { safeAddress = JSON.parse(safeAddress); } catch (e) { safeAddress = {}; }
+          }
+
+          // 🔥 Bơm đầy đủ data vào Payload để không bị mất Tên khách hàng ("Khách vãng lai")
           const payloadForApi = { 
             id: order.id,
             external_order_id: order.external_order_id,
+            customer_name: order.customer_name, // <-- Đã khôi phục Tên khách hàng
+            customer_email: order.customer_email,
+            customer_phone: order.customer_phone,
+            shipping_address: safeAddress,      // <-- Địa chỉ bọc an toàn chống sập Server
+            order_note: order.order_note,
             order_price: order.order_price,
             product_type: order.product_type,
             product_detail: order.product_detail
@@ -1401,6 +1411,10 @@ export default function OrdersPage() {
             orders: [payloadForApi], 
             target_shop_id: selectedShopId 
           });
+          
+          // 🔥 ĐÂY LÀ ĐIỂM CHỐT HẠ GIỐNG POPUP: Tải lại ngầm để chốt giá cuối cùng
+          fetchOrdersFromDB();
+          
         } catch(e) { 
           console.error("Lỗi auto-save Inline:", e);
         }
@@ -1457,9 +1471,9 @@ export default function OrdersPage() {
                 return [];
               })();
 
-              const isFullyMapped = safeItems.length > 0 && safeItems.every((item: any) => item.type && item.color && item.size);
-              const displayPrice = isFullyMapped ? (order.order_price || 0) : 0;
-              
+              // const isFullyMapped = safeItems.length > 0 && safeItems.every((item: any) => item.type && item.color && item.size);
+              // const displayPrice = isFullyMapped ? (order.order_price || 0) : 0;
+              const displayPrice = order.order_price || 0;
               const uniqueRowKey = order.id || order.external_order_id || `import-row-${absoluteIdx}`;
               const isEven = idx % 2 === 0;
               const rowBg = isChecked ? 'bg-[#C29017]/10' : (isEven ? 'bg-white' : 'bg-slate-50'); 

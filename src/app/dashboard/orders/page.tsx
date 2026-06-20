@@ -467,8 +467,18 @@ export default function OrdersPage() {
     if (validOrders.length === 0) {
       await confirm({
         title: "Không có đơn hàng hợp lệ",
-        message: "Tất cả các đơn bạn vừa tick chọn đều chưa đủ thông tin sản xuất (Thiếu Phôi/Màu/Size, Link thiết kế, hoặc Giá $0).\n\nBạn vui lòng kiểm tra và điền đầy đủ thông tin ngoài bảng trước khi tiến hành thanh toán nhé!",
-        confirmText: "Đã hiểu",
+        message: (
+          <div className="flex flex-col gap-3 text-sm text-gray-700 mt-2">
+            <p className="font-bold text-gray-900 text-base">Tất cả các đơn bạn vừa tick chọn đều bị lỗi thiếu thông tin!</p>
+            <p className="font-medium">Vui lòng kiểm tra và đảm bảo các đơn này đã được:</p>
+            <ul className="list-disc pl-5 space-y-1 font-bold text-red-600">
+              <li>Cài đặt Phôi / Màu / Size</li>
+              <li>Dán Link thiết kế</li>
+              <li>Có giá trị tiền {'>'} $0</li>
+            </ul>
+          </div>
+        ),
+        confirmText: "Tôi sẽ kiểm tra lại",
       });
       return;
     }
@@ -528,8 +538,17 @@ export default function OrdersPage() {
       if (validPendingOrders.length === 0) {
         await confirm({
           title: "Giao dịch bị tạm dừng",
-          message: `Hệ thống ghi nhận có ${invalidCount} đơn đang chờ thanh toán, nhưng TẤT CẢ đều chưa điền đủ thông tin sản xuất (Thiếu Phôi/Màu/Size, Link Design hoặc Giá vẫn đang $0).\n\nBạn vui lòng hoàn thiện thông tin cho các đơn này trước khi thanh toán hàng loạt nhé!`,
-          confirmText: "Đã hiểu",
+          message: (
+            <div className="flex flex-col gap-3 text-sm text-gray-700 mt-2">
+              <p className="font-medium leading-relaxed">
+                Hệ thống ghi nhận có <span className="font-extrabold text-red-600 text-base">{invalidCount}</span> đơn đang chờ thanh toán, nhưng <span className="font-bold text-red-600 uppercase">Tất cả đều chưa điền đủ thông tin</span>.
+              </p>
+              <div className="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded-xl font-medium text-xs">
+                Vui lòng điền đủ Phôi, Size và Link Design cho các đơn hàng này trước khi dùng tính năng thanh toán hàng loạt nhé!
+              </div>
+            </div>
+          ),
+          confirmText: "Tôi sẽ kiểm tra lại",
         });
         setIsAddingToPay(false);
         return;
@@ -1279,7 +1298,17 @@ export default function OrdersPage() {
       if (!isValid) {
         await confirm({
           title: "Chưa thể thanh toán đơn hàng",
-          message: "Đơn hàng này chưa đủ điều kiện để sản xuất. Bạn vui lòng kiểm tra và bổ sung các thông tin sau nhé:\n\n• Chọn đầy đủ Loại sản phẩm (Phôi), Màu sắc và Kích cỡ.\n• Cung cấp ít nhất 1 Link thiết kế (Front/Back).\n• Đảm bảo tổng đơn giá lớn hơn $0.\n\nSau khi điền đủ thông tin, hệ thống sẽ tự động mở khóa nút thanh toán!",
+          message: (
+            <div className="flex flex-col gap-3 text-sm text-gray-700 mt-2">
+              <p className="font-bold text-gray-900 text-base">Đơn hàng chưa đủ điều kiện để sản xuất. Bạn vui lòng bổ sung:</p>
+              <ul className="list-disc pl-5 space-y-2 font-medium text-red-600">
+                <li>Chọn đầy đủ <span className="font-extrabold underline underline-offset-2">Phôi, Màu sắc và Kích cỡ</span>.</li>
+                <li>Cung cấp ít nhất <span className="font-extrabold underline underline-offset-2">1 Link thiết kế</span> (Front hoặc Back).</li>
+                <li>Đảm bảo tổng đơn giá <span className="font-extrabold underline underline-offset-2">lớn hơn $0</span>.</li>
+              </ul>
+              <p className="italic text-gray-500 mt-2 bg-gray-50 p-2 rounded-lg text-xs">💡 Mẹo: Hệ thống sẽ tự động mở khóa nút Thanh toán ngay khi bạn điền đủ các thông tin trên!</p>
+            </div>
+          ),
           confirmText: "Tôi đã hiểu",
         });
         return;

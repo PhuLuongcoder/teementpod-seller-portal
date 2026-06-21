@@ -1387,24 +1387,28 @@ export default function OrdersPage() {
         
         // 3. Đẩy lên Server (Và gọi lại hàm fetch để đồng bộ y hệt Popup)
         try {
-          // Xử lý mượt cái địa chỉ để tránh lỗi 400 của Backend
-          let safeAddress = order.shipping_address;
-          if (typeof safeAddress === 'string') {
-            try { safeAddress = JSON.parse(safeAddress); } catch (e) { safeAddress = {}; }
-          }
+          // Hàm bọc an toàn: Biến chuỗi thành Object để tránh sập Server (Lỗi 400)
+          const parseObjSafe = (val: any) => {
+            if (!val) return null;
+            if (typeof val === 'object') return val;
+            if (typeof val === 'string') {
+              try { return JSON.parse(val); } catch { return null; }
+            }
+            return null;
+          };
 
-          // 🔥 Bơm đầy đủ data vào Payload để không bị mất Tên khách hàng ("Khách vãng lai")
-          const payloadForApi = { 
-            id: order.id,
-            external_order_id: order.external_order_id,
-            customer_name: order.customer_name, // <-- Đã khôi phục Tên khách hàng
-            customer_email: order.customer_email,
-            customer_phone: order.customer_phone,
-            shipping_address: safeAddress,      // <-- Địa chỉ bọc an toàn chống sập Server
-            order_note: order.order_note,
+          // 🔥 KHÔI PHỤC TOÀN BỘ DATA: Dùng ...order để giữ nguyên status, tracking, date...
+          // Tránh lỗi Backend tự động xóa các trường bị thiếu (Wipeout) làm mất đơn trên Admin
+          const payloadForApi = {
+            ...order,
             order_price: order.order_price,
             product_type: order.product_type,
-            product_detail: order.product_detail
+            product_detail: order.product_detail,
+            // Ép 3 trường dễ lỗi này về đúng định dạng Object
+            shipping_address: parseObjSafe(order.shipping_address),
+            special_print_areas: parseObjSafe(order.special_print_areas),
+            mockup_urls: parseObjSafe(order.mockup_urls),
+            items: undefined // Xóa mảng items thừa để tránh xung đột với product_detail
           };
           
           await api.post('/partner/orders', { 
@@ -1412,7 +1416,7 @@ export default function OrdersPage() {
             target_shop_id: selectedShopId 
           });
           
-          // 🔥 ĐÂY LÀ ĐIỂM CHỐT HẠ GIỐNG POPUP: Tải lại ngầm để chốt giá cuối cùng
+          // 🔥 ĐÂY LÀ ĐIỂM CHỐT HẠ: Tải lại ngầm để đồng bộ mượt mà
           fetchOrdersFromDB();
           
         } catch(e) { 

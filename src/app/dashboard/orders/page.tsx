@@ -1397,8 +1397,6 @@ export default function OrdersPage() {
             return null;
           };
 
-          // 🔥 KHÔI PHỤC TOÀN BỘ DATA: Dùng ...order để giữ nguyên status, tracking, date...
-          // Tránh lỗi Backend tự động xóa các trường bị thiếu (Wipeout) làm mất đơn trên Admin
           const payloadForApi = {
             ...order,
             order_price: order.order_price,
@@ -1415,8 +1413,6 @@ export default function OrdersPage() {
             orders: [payloadForApi], 
             target_shop_id: selectedShopId 
           });
-          
-          // 🔥 ĐÂY LÀ ĐIỂM CHỐT HẠ: Tải lại ngầm để đồng bộ mượt mà
           fetchOrdersFromDB();
           
         } catch(e) { 
@@ -1499,8 +1495,18 @@ export default function OrdersPage() {
                   </td>
                   
                   <td className="p-4">
-                    <div className="flex items-center gap-1.5 group/orderid w-max">
+                    <div className="flex items-center gap-1.5 group/orderid w-max cursor-pointer">
                       <span className="font-bold text-gray-900">{order.external_order_id}</span>
+                      {/* NÚT COPY (Ẩn mặc định, hiện khi Hover) */}
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); copyToClipboard(order.external_order_id); }}
+                        className="opacity-0 group-hover/orderid:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity p-1 rounded-md hover:bg-blue-50"
+                        title="Copy Mã Đơn"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" />
+                        </svg>
+                      </button>
                     </div>
                   </td>
 
@@ -1513,7 +1519,23 @@ export default function OrdersPage() {
                   </td>
 
                   <td className="px-4 py-3 text-xs">
-                    {order.tracking_number ? <span className="font-bold text-[#C29017]">{order.tracking_number}</span> : <span className="text-gray-400 italic">Chưa có</span>}
+                    {order.tracking_number ? (
+                      <div className="flex items-center gap-1.5 group/tracking w-max cursor-pointer">
+                        <span className="font-bold text-[#C29017]">{order.tracking_number}</span>
+                        {/* NÚT COPY TRACKING */}
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); copyToClipboard(order.tracking_number); }}
+                          className="opacity-0 group-hover/tracking:opacity-100 text-gray-400 hover:text-[#C29017] transition-opacity p-1 rounded-md hover:bg-amber-50"
+                          title="Copy Tracking"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 italic">Chưa có</span>
+                    )}
                   </td>
 
                   <td className="p-4 font-semibold text-gray-800">{order.customer_name}</td>

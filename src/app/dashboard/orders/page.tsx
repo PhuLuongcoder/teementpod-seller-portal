@@ -1768,7 +1768,9 @@ export default function OrdersPage() {
                       })}
                     </div>
                   </td>
-                  <td className="p-4 font-extrabold text-gray-900 text-right">${displayPrice}</td>
+                  <td className="p-4 font-extrabold text-gray-900 text-right">
+                    ${Number(displayPrice).toFixed(2)}
+                  </td>
 
                   <td className="p-4 text-center align-middle">
                     {order.status === 'pending' && !isImport && (

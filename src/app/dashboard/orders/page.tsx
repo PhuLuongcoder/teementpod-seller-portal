@@ -271,13 +271,11 @@ export default function OrdersPage() {
       // ĐIỀU KIỆN 2: Bắt buộc phải có ít nhất 1 link thiết kế (Mặt trước hoặc mặt sau)
       if (!it.design_front && !it.design_back) return false;
 
-      // ĐIỀU KIỆN 3: Phôi phải có thật trên hệ thống
       const blank = podBlanks.find(b => b.name === it.type);
       if (!blank) return false;
-
-      // Cộng dồn tính toán giá
-      if (blank.display_price) {
-        calculatedPrice += (blank.display_price * (it.quantity || 1));
+      const priceToUse = Number(blank.display_price || blank.price || blank.base_price || 0);
+      if (priceToUse > 0) {
+        calculatedPrice += (priceToUse * (it.quantity || 1));
       }
 
       // ĐIỀU KIỆN 4: Size phải khớp với bảng Size của Phôi
@@ -474,7 +472,6 @@ export default function OrdersPage() {
             <ul className="list-disc pl-5 space-y-1 font-bold text-red-600">
               <li>Cài đặt Phôi / Màu / Size</li>
               <li>Dán Link thiết kế</li>
-              <li>Có giá trị tiền {'>'} $0</li>
             </ul>
           </div>
         ),
@@ -1372,8 +1369,10 @@ export default function OrdersPage() {
         }
       });
       
-      // Ép thẳng giá tiền mới vào đơn
-      order.order_price = tempPrice;
+      // Ép thẳng giá tiền mới vào đơn (Bảo vệ giá trị gốc nếu giao diện tính ra 0đ)
+      if (tempPrice > 0) {
+        order.order_price = tempPrice;
+      }
       order.product_type = newItems.length > 1 ? `${newItems[0]?.type} (+${newItems.length - 1} món khác)` : (newItems[0]?.type || '');
       order.items = newItems;
       order.product_detail = JSON.stringify(newItems);

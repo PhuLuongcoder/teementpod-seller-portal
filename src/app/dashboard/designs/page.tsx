@@ -63,7 +63,7 @@ export default function DesignsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-
+  const [previewColors, setPreviewColors] = useState<Record<string, string>>({});
   // Gọi API lấy danh sách thiết kế
   const fetchDesigns = useCallback(async () => {
     if (!selectedShopId) return;
@@ -313,13 +313,51 @@ export default function DesignsPage() {
                 ) : (
                   designs.map((design, idx) => (
                     <tr key={design.id} className="hover:bg-blue-50/30 transition group">
-                      {/* SKU */}
-                      <td className="p-4 font-black text-gray-900 text-base align-top pt-6">{design.sku}</td>
+                      {/* SKU VÀ BỘ CHỌN MÀU ƯỚM THỬ */}
+                      <td className="p-4 font-black text-gray-900 text-base align-top pt-6">
+                        <div className="flex flex-col gap-3">
+                          <span>{design.sku}</span>
+                          
+                          {/* Nút ướm thử màu nền */}
+                          <div className="flex flex-col gap-1.5 mt-2">
+                            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Nền ướm thử</span>
+                            <div className="flex items-center gap-1.5 flex-wrap w-28">
+                              {/* 4 màu cơ bản thường dùng nhất */}
+                              {['#f9fafb', '#111827', '#1e3a8a', '#7f1d1d'].map(color => (
+                                <button
+                                  key={color}
+                                  onClick={() => setPreviewColors(prev => ({ ...prev, [design.id]: color }))}
+                                  className={`w-4 h-4 rounded-full border border-gray-300 shadow-sm hover:scale-110 transition-transform ${previewColors[design.id] === color || (!previewColors[design.id] && color === '#f9fafb') ? 'ring-2 ring-[#C29017] ring-offset-1' : ''}`}
+                                  style={{ backgroundColor: color }}
+                                  title={`Ưốm thử màu ${color}`}
+                                />
+                              ))}
+                              
+                              {/* Nút Bảng màu tự do (Color Picker) */}
+                              <div 
+                                className="relative w-4 h-4 rounded-full overflow-hidden border border-gray-300 shadow-sm cursor-pointer hover:scale-110 transition-transform flex items-center justify-center"
+                                style={{ background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' }}
+                                title="Chọn màu tùy ý"
+                              >
+                                 <input
+                                   type="color"
+                                   value={previewColors[design.id] || '#f9fafb'}
+                                   onChange={(e) => setPreviewColors(prev => ({ ...prev, [design.id]: e.target.value }))}
+                                   className="w-8 h-8 opacity-0 cursor-pointer absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                                 />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
                       
                       {/* MẶT TRƯỚC */}
                       <td className="p-4 align-top w-48">
                         <div className="flex flex-col gap-2">
-                          <div className="w-full h-28 rounded-xl shadow-inner border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                          <div 
+                            className="w-full h-28 rounded-xl shadow-inner border border-gray-200 flex items-center justify-center overflow-hidden relative transition-colors duration-300"
+                            style={{ backgroundColor: previewColors[design.id] || '#f9fafb' }}
+                          >
                             {isValidImageUrl(design.design_front_url) ? (
                               <img src={convertGoogleDriveUrl(design.design_front_url)} alt="Front" className="w-full h-full object-contain p-1.5" onError={(e) => e.currentTarget.src = 'https://placehold.co/150x150?text=Error'} />
                             ) : (
@@ -343,7 +381,10 @@ export default function DesignsPage() {
                       {/* MẶT SAU */}
                       <td className="p-4 align-top w-48">
                         <div className="flex flex-col gap-2">
-                          <div className="w-full h-28 rounded-xl shadow-inner border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                          <div 
+                            className="w-full h-28 rounded-xl shadow-inner border border-gray-200 flex items-center justify-center overflow-hidden relative transition-colors duration-300"
+                            style={{ backgroundColor: previewColors[design.id] || '#f9fafb' }}
+                          >
                             {isValidImageUrl(design.design_back_url) ? (
                               <img src={convertGoogleDriveUrl(design.design_back_url)} alt="Back" className="w-full h-full object-contain p-1.5" onError={(e) => e.currentTarget.src = 'https://placehold.co/150x150?text=Error'} />
                             ) : (
@@ -367,7 +408,10 @@ export default function DesignsPage() {
                       {/* MOCKUP */}
                       <td className="p-4 align-top w-48">
                         <div className="flex flex-col gap-2">
-                          <div className="w-full h-28 rounded-xl shadow-inner border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                          <div 
+                            className="w-full h-28 rounded-xl shadow-inner border border-gray-200 flex items-center justify-center overflow-hidden relative transition-colors duration-300"
+                            style={{ backgroundColor: previewColors[design.id] || '#f9fafb' }}
+                          >
                             {isValidImageUrl(design.mockup_url) ? (
                               <img src={convertGoogleDriveUrl(design.mockup_url)} alt="Mockup" className="w-full h-full object-cover" onError={(e) => e.currentTarget.src = 'https://placehold.co/150x150?text=Error'} />
                             ) : (

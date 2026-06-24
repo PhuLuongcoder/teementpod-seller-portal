@@ -5,6 +5,33 @@ import { useShop } from '@/context/ShopContext';
 import api from '@/lib/axios';
 import { useConfirm } from '@/context/ConfirmContext';
 
+// Helper kiểm tra URL hợp lệ khắt khe để tránh lỗi 404 relative path
+const isValidImageUrl = (url?: string): boolean => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed.toLowerCase().startsWith('http')) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+// Helper tự động bóc tách ID từ link Google Drive để hiển thị ảnh Thumbnail
+const convertGoogleDriveUrl = (url?: string): string => {
+  if (!url) return '';
+  const fileMatch = url.match(/\/file\/d\/([^\/]+)/);
+  if (fileMatch?.[1]) {
+    return `https://drive.google.com/thumbnail?id=${fileMatch[1]}&sz=w1000`;
+  }
+  const openMatch = url.match(/[?&]id=([^&]+)/);
+  if (openMatch?.[1]) {
+    return `https://drive.google.com/thumbnail?id=${openMatch[1]}&sz=w1000`;
+  }
+  return url;
+};
+
 type Design = {
   id: string;
   sku: string;
@@ -16,7 +43,7 @@ type Design = {
 };
 
 export default function DesignsPage() {
-  const { confirm } = useConfirm();
+  const { confirm, notify } = useConfirm();
   const { selectedShopId } = useShop();
   const [designs, setDesigns] = useState<Design[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +131,40 @@ export default function DesignsPage() {
     }
   };
 
+  // ==========================================
+  // HÀM LƯU INLINE (TỰ ĐỘNG LƯU KHI SỬA TRỰC TIẾP TRÊN BẢNG)
+  // ==========================================
+  const updateInlineDesign = async (index: number, updates: Partial<Design>) => {
+    const design = designs[index];
+    const key = Object.keys(updates)[0] as keyof Design;
+    const newValue = updates[key];
+    
+    // Nếu không có thay đổi, bỏ qua không gọi API
+    if (design[key] === newValue) return;
+
+    // Cập nhật giao diện ngay lập tức (Optimistic Update)
+    const newDesigns = [...designs];
+    newDesigns[index] = { ...design, ...updates };
+    setDesigns(newDesigns);
+
+    try {
+      await api.post('/partner/designs', {
+        id: design.id,
+        sku: design.sku,
+        design_front_url: updates.design_front_url !== undefined ? updates.design_front_url : design.design_front_url,
+        design_back_url: updates.design_back_url !== undefined ? updates.design_back_url : design.design_back_url,
+        mockup_url: updates.mockup_url !== undefined ? updates.mockup_url : design.mockup_url,
+        extra_print_areas: design.extra_print_areas, // Bảo toàn vùng in phụ
+        shop_id: selectedShopId
+      });
+      if (notify) notify(`Đã cập nhật link thành công cho SKU: ${design.sku}`);
+    } catch (err) {
+      console.error("Lỗi cập nhật thiết kế inline:", err);
+      alert("Lưu thiết kế thất bại. Vui lòng thử lại.");
+      fetchDesigns(); // Phục hồi lại dữ liệu cũ nếu lỗi
+    }
+  };
+
   const handleDeleteDesign = async (id: string) => {
     const isConfirmed = await confirm({
       title: "Xóa thiết kế",
@@ -120,9 +181,6 @@ export default function DesignsPage() {
     }
   };
 
-  // ==========================================
-  // HÀM XỬ LÝ XUẤT FILE CSV
-  // ==========================================
   const handleExportCSV = async () => {
     if (!selectedShopId) return;
     setIsExporting(true);
@@ -147,9 +205,6 @@ export default function DesignsPage() {
     }
   };
 
-  // ==========================================
-  // HÀM XỬ LÝ NHẬP FILE CSV (IMPORT)
-  // ==========================================
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedShopId) return;
@@ -184,7 +239,7 @@ export default function DesignsPage() {
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center bg-white p-6 rounded-xl shadow-sm border border-gray-100 gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-800">Thư viện Thiết kế & SKU</h2>
-          <p className="text-sm text-gray-500 mt-1">Quản lý kho tài nguyên in ấn. Hệ thống tự động đối chiếu dữ liệu khi nạp CSV.</p>
+          <p className="text-sm text-gray-500 mt-1">Quản lý kho tài nguyên in ấn. Có thể chỉnh sửa nhanh link ảnh trực tiếp trên bảng.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
@@ -194,7 +249,7 @@ export default function DesignsPage() {
               placeholder="Tìm theo mã SKU..." 
               value={searchQuery}
               onChange={handleSearch}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500 text-sm"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-blue-500 text-sm bg-gray-50 focus:bg-white transition-colors"
             />
           </div>
           
@@ -226,7 +281,7 @@ export default function DesignsPage() {
             disabled={!selectedShopId}
             className="bg-gray-900 text-white font-bold text-sm px-5 py-2 rounded-lg shadow hover:bg-black transition active:scale-95 disabled:opacity-50 whitespace-nowrap"
           >
-            + Thêm Mới
+            + Thêm Mới Gốc
           </button>
         </div>
       </div>
@@ -239,16 +294,16 @@ export default function DesignsPage() {
           <div className="overflow-x-auto min-h-[400px]">
             <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead>
-                <tr className="bg-gray-50 text-gray-500 text-[11px] uppercase tracking-widest border-b">
+                <tr className="bg-gray-50 text-gray-500 text-[11px] uppercase tracking-widest border-b border-gray-200">
                   <th className="p-4 font-bold">Mã Định Danh (SKU)</th>
-                  <th className="p-4 font-bold">Mặt Trước</th>
-                  <th className="p-4 font-bold">Mặt Sau</th>
-                  <th className="p-4 font-bold">Mockup</th>
+                  <th className="p-4 font-bold">Mặt Trước (Front)</th>
+                  <th className="p-4 font-bold">Mặt Sau (Back)</th>
+                  <th className="p-4 font-bold">Mockup SP</th>
                   <th className="p-4 font-bold">Vùng In Phụ</th>
-                  <th className="p-4 font-bold text-right">Hành động</th>
+                  <th className="p-4 font-bold text-center">Thao tác</th>
                 </tr>
               </thead>
-              <tbody className="text-sm divide-y">
+              <tbody className="text-sm divide-y divide-gray-100">
                 {designs.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-12 text-center text-gray-400 italic">
@@ -256,52 +311,119 @@ export default function DesignsPage() {
                     </td>
                   </tr>
                 ) : (
-                  designs.map((design) => (
-                    <tr key={design.id} className="hover:bg-gray-50 transition">
-                      <td className="p-4 font-bold text-gray-900">{design.sku}</td>
-                      <td className="p-4">
-                        {design.design_front_url ? (
-                          <a href={design.design_front_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-xs block truncate max-w-[150px]">Front Design</a>
-                        ) : <span className="text-gray-400 italic">Không có</span>}
-                      </td>
-                      <td className="p-4">
-                        {design.design_back_url ? (
-                          <a href={design.design_back_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-xs block truncate max-w-[150px]">Back Design</a>
-                        ) : <span className="text-gray-400 italic">Không có</span>}
-                      </td>
-                      <td className="p-4">
-                        {design.mockup_url ? (
-                          <a href={design.mockup_url} target="_blank" rel="noreferrer" className="text-teal-600 hover:underline text-xs block truncate max-w-[150px]">Mockup</a>
-                        ) : <span className="text-gray-400 italic">Không có</span>}
-                      </td>
-                      {/* Cột hiển thị Vùng in phụ dạng Tooltip */}
-                      <td className="p-4 relative group/ext">
-                        {design.extra_print_areas && design.extra_print_areas.length > 0 ? (
-                          <div className="cursor-help w-max">
-                            <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-1 rounded shadow-sm border border-purple-200">
-                              +{design.extra_print_areas.length} vùng in
-                            </span>
-                            {/* Popup Tooltip Hover */}
-                            <div className="absolute bottom-full left-0 mb-2 hidden group-hover/ext:flex flex-col gap-2 z-[99] bg-gray-900 text-white p-3 rounded-lg shadow-xl border border-gray-700 w-max min-w-[200px] animate-in fade-in zoom-in duration-200">
-                              {design.extra_print_areas.map((ep, i) => (
-                                <div key={i} className="flex justify-between items-center gap-4 text-xs">
-                                  <span className="font-semibold text-purple-300">{ep.name}:</span>
-                                  <a href={ep.url} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline max-w-[180px] truncate">
-                                    {ep.url}
-                                  </a>
-                                </div>
-                              ))}
-                              {/* Mũi tên nhỏ trỏ xuống */}
-                              <div className="w-3 h-3 bg-gray-900 border-b border-r border-gray-700 rotate-45 absolute -bottom-1.5 left-6"></div>
-                            </div>
+                  designs.map((design, idx) => (
+                    <tr key={design.id} className="hover:bg-blue-50/30 transition group">
+                      {/* SKU */}
+                      <td className="p-4 font-black text-gray-900 text-base align-top pt-6">{design.sku}</td>
+                      
+                      {/* MẶT TRƯỚC */}
+                      <td className="p-4 align-top w-48">
+                        <div className="flex flex-col gap-2">
+                          <div className="w-full h-28 rounded-xl shadow-inner border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                            {isValidImageUrl(design.design_front_url) ? (
+                              <img src={convertGoogleDriveUrl(design.design_front_url)} alt="Front" className="w-full h-full object-contain p-1.5" onError={(e) => e.currentTarget.src = 'https://placehold.co/150x150?text=Error'} />
+                            ) : (
+                              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">No Image</span>
+                            )}
                           </div>
-                        ) : (
-                          <span className="text-gray-400 italic text-xs">Không có</span>
-                        )}
+                          <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400/20 transition-all shadow-sm">
+                            <span className="text-[9px] font-extrabold text-blue-500 w-10 shrink-0 uppercase tracking-tight text-center">Front</span>
+                            <div className="w-px h-4 bg-gray-200 shrink-0"></div>
+                            <input
+                              type="text"
+                              placeholder="Dán link Front..."
+                              defaultValue={design.design_front_url || ''}
+                              onBlur={(e) => updateInlineDesign(idx, { design_front_url: e.target.value })}
+                              className="w-full text-[10px] py-2 bg-transparent outline-none text-gray-700 placeholder-gray-400 font-medium"
+                            />
+                          </div>
+                        </div>
                       </td>
-                      <td className="p-4 text-right space-x-3">
-                        <button onClick={() => openModal(design)} className="text-blue-600 font-bold hover:underline">Sửa</button>
-                        <button onClick={() => handleDeleteDesign(design.id)} className="text-red-500 font-bold hover:underline">Xóa</button>
+
+                      {/* MẶT SAU */}
+                      <td className="p-4 align-top w-48">
+                        <div className="flex flex-col gap-2">
+                          <div className="w-full h-28 rounded-xl shadow-inner border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                            {isValidImageUrl(design.design_back_url) ? (
+                              <img src={convertGoogleDriveUrl(design.design_back_url)} alt="Back" className="w-full h-full object-contain p-1.5" onError={(e) => e.currentTarget.src = 'https://placehold.co/150x150?text=Error'} />
+                            ) : (
+                              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">No Image</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 focus-within:border-purple-400 focus-within:ring-1 focus-within:ring-purple-400/20 transition-all shadow-sm">
+                            <span className="text-[9px] font-extrabold text-purple-500 w-10 shrink-0 uppercase tracking-tight text-center">Back</span>
+                            <div className="w-px h-4 bg-gray-200 shrink-0"></div>
+                            <input
+                              type="text"
+                              placeholder="Dán link Back..."
+                              defaultValue={design.design_back_url || ''}
+                              onBlur={(e) => updateInlineDesign(idx, { design_back_url: e.target.value })}
+                              className="w-full text-[10px] py-2 bg-transparent outline-none text-gray-700 placeholder-gray-400 font-medium"
+                            />
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* MOCKUP */}
+                      <td className="p-4 align-top w-48">
+                        <div className="flex flex-col gap-2">
+                          <div className="w-full h-28 rounded-xl shadow-inner border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                            {isValidImageUrl(design.mockup_url) ? (
+                              <img src={convertGoogleDriveUrl(design.mockup_url)} alt="Mockup" className="w-full h-full object-cover" onError={(e) => e.currentTarget.src = 'https://placehold.co/150x150?text=Error'} />
+                            ) : (
+                              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">No Mockup</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 focus-within:border-teal-500 focus-within:ring-1 focus-within:ring-teal-500/20 transition-all shadow-sm">
+                            <span className="text-[9px] font-extrabold text-teal-600 w-12 shrink-0 uppercase tracking-tight text-center">Mockup</span>
+                            <div className="w-px h-4 bg-gray-200 shrink-0"></div>
+                            <input
+                              type="text"
+                              placeholder="Dán link Mockup..."
+                              defaultValue={design.mockup_url || ''}
+                              onBlur={(e) => updateInlineDesign(idx, { mockup_url: e.target.value })}
+                              className="w-full text-[10px] py-2 bg-transparent outline-none text-gray-700 placeholder-gray-400 font-medium"
+                            />
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* VÙNG IN PHỤ */}
+                      <td className="p-4 align-top pt-6 relative group/ext">
+                        <div className="flex flex-col gap-2 items-start">
+                          {design.extra_print_areas && design.extra_print_areas.length > 0 ? (
+                            <div className="cursor-help w-max">
+                              <span className="bg-purple-100 text-purple-700 text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm border border-purple-200 flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                                {design.extra_print_areas.length} vùng in
+                              </span>
+                              {/* Popup Tooltip Hover */}
+                              <div className="absolute top-14 left-4 hidden group-hover/ext:flex flex-col gap-2 z-[99] bg-gray-900 text-white p-3 rounded-lg shadow-xl border border-gray-700 w-max min-w-[200px] animate-in fade-in zoom-in duration-200">
+                                {design.extra_print_areas.map((ep, i) => (
+                                  <div key={i} className="flex justify-between items-center gap-4 text-xs border-b border-gray-700 pb-1.5 last:border-0 last:pb-0">
+                                    <span className="font-semibold text-purple-300">{ep.name}:</span>
+                                    <a href={ep.url} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline max-w-[150px] truncate">
+                                      {ep.url}
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 italic text-xs px-2">Không có</span>
+                          )}
+                          <button onClick={() => openModal(design)} className="text-[10px] bg-white text-gray-600 px-2.5 py-1.5 rounded-lg font-bold hover:bg-gray-100 hover:text-gray-900 border border-gray-200 mt-2 shadow-sm transition">
+                            + Thêm/Sửa vùng phụ
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* HÀNH ĐỘNG */}
+                      <td className="p-4 align-top pt-6 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <button onClick={() => openModal(design)} className="w-full text-[11px] bg-gray-100 text-gray-700 font-bold px-3 py-1.5 rounded hover:bg-gray-200 transition border border-gray-200 shadow-sm">Chi tiết</button>
+                          <button onClick={() => handleDeleteDesign(design.id)} className="w-full text-[11px] text-red-500 font-bold px-3 py-1.5 rounded hover:bg-red-50 transition border border-transparent hover:border-red-100">Xóa SKU</button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -336,12 +458,12 @@ export default function DesignsPage() {
         </div>
       )}
 
-      {/* POPUP MODAL THÊM / SỬA THIẾT KẾ */}
+      {/* POPUP MODAL THÊM / SỬA CHI TIẾT */}
       {isModalOpen && currentDesign && (
         <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
           <form onSubmit={handleSaveDesign} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-5 bg-gray-50 border-b flex justify-between items-center shrink-0">
-              <h3 className="font-bold text-gray-800">{currentDesign.id ? '🛠️ Cập nhật thông số SKU' : '🎨 Thêm thiết kế gốc vào hệ thống'}</h3>
+              <h3 className="font-bold text-gray-800">{currentDesign.id ? `🛠️ Cập nhật SKU: ${currentDesign.sku}` : '🎨 Thêm thiết kế gốc vào hệ thống'}</h3>
               <button type="button" onClick={() => setIsModalOpen(false)} className="text-2xl font-light text-gray-400 hover:text-black">&times;</button>
             </div>
             

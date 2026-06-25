@@ -1583,7 +1583,7 @@ export default function OrdersPage() {
                                   disabled={isRowLocked}
                                   value={item.sku || ''}
                                   options={sellerDesigns}
-                                  onBlur={(val) => updateInlineItem(absoluteIdx, itemIdx, { sku: val })}   {/* SỬA onChange THÀNH onBlur */}
+                                  onBlur={(val) => updateInlineItem(absoluteIdx, itemIdx, { sku: val })} 
                                   onSelect={(design) => {
                                     const libraryExtraAreas = design.extra_print_areas || [];
                                     updateInlineItem(absoluteIdx, itemIdx, {

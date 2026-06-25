@@ -160,11 +160,12 @@ interface SkuComboboxProps {
   value: string;
   options: any[];
   disabled?: boolean;
-  onChange: (newSku: string) => void;
+  onChange?: (newSku: string) => void;
+  onBlur?: (newSku: string) => void;
   onSelect: (design: any) => void;
 }
 
-const SkuCombobox = ({ value, options, disabled, onChange, onSelect }: SkuComboboxProps) => {
+const SkuCombobox = ({ value, options, disabled, onChange, onBlur, onSelect }: SkuComboboxProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [localValue, setLocalValue] = useState(value || '');
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -196,10 +197,18 @@ const SkuCombobox = ({ value, options, disabled, onChange, onSelect }: SkuCombob
         onChange={(e) => {
           setLocalValue(e.target.value); 
           setIsOpen(true);
+          if (onChange) onChange(e.target.value); // Cập nhật tức thời cho Popup
         }}
         onBlur={() => {
-          if (localValue !== value) {
-            onChange(localValue);
+          if (onBlur && localValue !== value) {
+            onBlur(localValue); // Chỉ gọi lưu API khi gõ xong cho Inline
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+            setIsOpen(false);
           }
         }}
         onFocus={() => setIsOpen(true)}
@@ -1574,7 +1583,7 @@ export default function OrdersPage() {
                                   disabled={isRowLocked}
                                   value={item.sku || ''}
                                   options={sellerDesigns}
-                                  onChange={(val) => updateInlineItem(absoluteIdx, itemIdx, { sku: val })}
+                                  onBlur={(val) => updateInlineItem(absoluteIdx, itemIdx, { sku: val })}   {/* SỬA onChange THÀNH onBlur */}
                                   onSelect={(design) => {
                                     const libraryExtraAreas = design.extra_print_areas || [];
                                     updateInlineItem(absoluteIdx, itemIdx, {

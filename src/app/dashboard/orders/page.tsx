@@ -635,7 +635,11 @@ export default function OrdersPage() {
     if (!selectedShopId) return;
     setIsExporting(true);
     try {
-      const params: any = { shop_id: selectedShopId };
+      // >>> THÊM limit: 999999 để tải toàn bộ đơn hàng thỏa mãn bộ lọc, vượt rào phân trang 10 đơn
+      const params: any = { 
+        shop_id: selectedShopId,
+        limit: 999999 
+      };
       
       if (statusFilter === 'reship') {
         params.search = searchQuery ? `${searchQuery} RS-` : 'RS-';
@@ -731,7 +735,10 @@ export default function OrdersPage() {
             `"${(item.design_back || '').replace(/"/g, '""')}"`,
             `"${(item.mockup || '').replace(/"/g, '""')}"`,
             `"${extraPrintStr.replace(/"/g, '""')}"`,
+            
+            // >>> XỬ LÝ TRACKING: Đổ mã tracking, nếu null hoặc undefined thì sẽ là khoảng trắng rỗng ""
             `"${(order.tracking_number || '').replace(/"/g, '""')}"`,
+            
             `"${statusText}"`
           ];
           csvRows.push(row.join(","));

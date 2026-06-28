@@ -2907,33 +2907,96 @@ export default function OrdersPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl ring-1 ring-gray-200/50">
-                        <div className="col-span-1">
-                          <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1">Mã SKU (Đồng bộ thư viện)</label>
-                          <SkuCombobox
-                            value={item.sku || ''}
-                            options={sellerDesigns}
-                            onChange={(val) => { const n = [...createForm.items]; n[index].sku = val; setCreateForm({ ...createForm, items: n }); }}
-                            onSelect={(d) => {
-                              const n = [...createForm.items];
-                              n[index] = { ...n[index], sku: d.sku, design_front: d.design_front_url || n[index].design_front, design_back: d.design_back_url || n[index].design_back, mockup: d.mockup_url || n[index].mockup };
-                              setCreateForm({ ...createForm, items: n });
-                            }}
-                          />
+                      {/* KHỐI NHẬP LINK VÀ HIỂN THỊ ẢNH TRỰC QUAN */}
+                      <div className="flex flex-col gap-4 bg-gray-50 p-4 rounded-xl ring-1 ring-gray-200/50">
+                        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+                          <div className="col-span-1 flex flex-col justify-center">
+                            <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1">Mã SKU (Đồng bộ thư viện)</label>
+                            <SkuCombobox
+                              value={item.sku || ''}
+                              options={sellerDesigns}
+                              onChange={(val) => { const n = [...createForm.items]; n[index].sku = val; setCreateForm({ ...createForm, items: n }); }}
+                              onSelect={(d) => {
+                                const n = [...createForm.items];
+                                n[index] = { ...n[index], sku: d.sku, design_front: d.design_front_url || n[index].design_front, design_back: d.design_back_url || n[index].design_back, mockup: d.mockup_url || n[index].mockup, extra_print_areas: d.extra_print_areas || n[index].extra_print_areas };
+                                setCreateForm({ ...createForm, items: n });
+                              }}
+                            />
+                          </div>
+
+                          <div className="col-span-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {/* KHỐI FRONT */}
+                            <div className="flex items-start gap-2 bg-white ring-1 ring-gray-200 p-2 rounded-xl shadow-sm focus-within:ring-blue-400 transition-all">
+                              <div className="w-12 h-12 shrink-0 rounded-lg shadow-inner border border-gray-100 flex items-center justify-center overflow-hidden" style={{ backgroundColor: getStandardColor(item.color) }}>
+                                {isValidImageUrl(item.design_front) ? (
+                                  <img src={convertGoogleDriveUrl(item.design_front)} className="w-full h-full object-contain p-0.5" alt="Front" />
+                                ) : <span className="text-[8px] font-bold text-gray-400">Trống</span>}
+                              </div>
+                              <div className="flex-1 flex flex-col justify-center gap-1 mt-0.5">
+                                <label className="text-[9px] text-blue-600 font-extrabold uppercase tracking-wider">Link Front</label>
+                                <input type="text" placeholder="Dán link ảnh mặt trước..." value={item.design_front} onChange={(e) => { const n = [...createForm.items]; n[index].design_front = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full text-[10px] outline-none bg-transparent text-gray-700 placeholder-gray-300"/>
+                              </div>
+                            </div>
+
+                            {/* KHỐI BACK */}
+                            <div className="flex items-start gap-2 bg-white ring-1 ring-gray-200 p-2 rounded-xl shadow-sm focus-within:ring-purple-400 transition-all">
+                              <div className="w-12 h-12 shrink-0 rounded-lg shadow-inner border border-gray-100 flex items-center justify-center overflow-hidden" style={{ backgroundColor: getStandardColor(item.color) }}>
+                                {isValidImageUrl(item.design_back) ? (
+                                  <img src={convertGoogleDriveUrl(item.design_back)} className="w-full h-full object-contain p-0.5" alt="Back" />
+                                ) : <span className="text-[8px] font-bold text-gray-400">Trống</span>}
+                              </div>
+                              <div className="flex-1 flex flex-col justify-center gap-1 mt-0.5">
+                                <label className="text-[9px] text-purple-600 font-extrabold uppercase tracking-wider">Link Back</label>
+                                <input type="text" placeholder="Dán link ảnh mặt sau..." value={item.design_back} onChange={(e) => { const n = [...createForm.items]; n[index].design_back = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full text-[10px] outline-none bg-transparent text-gray-700 placeholder-gray-300"/>
+                              </div>
+                            </div>
+
+                            {/* KHỐI MOCKUP */}
+                            <div className="flex items-start gap-2 bg-white ring-1 ring-gray-200 p-2 rounded-xl shadow-sm focus-within:ring-teal-500 transition-all">
+                              <div className="w-12 h-12 shrink-0 rounded-lg shadow-inner border border-gray-100 flex items-center justify-center overflow-hidden" style={{ backgroundColor: getStandardColor(item.color) }}>
+                                {isValidImageUrl(item.mockup) ? (
+                                  <img src={convertGoogleDriveUrl(item.mockup)} className="w-full h-full object-cover" alt="Mockup" />
+                                ) : <span className="text-[8px] font-bold text-gray-400">Trống</span>}
+                              </div>
+                              <div className="flex-1 flex flex-col justify-center gap-1 mt-0.5">
+                                <label className="text-[9px] text-teal-600 font-extrabold uppercase tracking-wider">Link Mockup</label>
+                                <input type="text" placeholder="Dán link ảnh Mockup..." value={item.mockup} onChange={(e) => { const n = [...createForm.items]; n[index].mockup = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full text-[10px] outline-none bg-transparent text-gray-700 placeholder-gray-300"/>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="col-span-3 grid grid-cols-3 gap-2">
-                           <div className="flex flex-col gap-1">
-                              <label className="text-[10px] text-blue-600 font-bold uppercase">Link Front</label>
-                              <input type="text" placeholder="Dán link Drive..." value={item.design_front} onChange={(e) => { const n = [...createForm.items]; n[index].design_front = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full bg-white ring-1 ring-gray-200 p-2 rounded-md text-[10px] outline-none focus:ring-1 focus:ring-blue-400"/>
-                           </div>
-                           <div className="flex flex-col gap-1">
-                              <label className="text-[10px] text-purple-600 font-bold uppercase">Link Back</label>
-                              <input type="text" placeholder="Dán link Drive..." value={item.design_back} onChange={(e) => { const n = [...createForm.items]; n[index].design_back = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full bg-white ring-1 ring-gray-200 p-2 rounded-md text-[10px] outline-none focus:ring-1 focus:ring-purple-400"/>
-                           </div>
-                           <div className="flex flex-col gap-1">
-                              <label className="text-[10px] text-teal-600 font-bold uppercase">Link Mockup</label>
-                              <input type="text" placeholder="Dán link Drive..." value={item.mockup} onChange={(e) => { const n = [...createForm.items]; n[index].mockup = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full bg-white ring-1 ring-gray-200 p-2 rounded-md text-[10px] outline-none focus:ring-1 focus:ring-teal-400"/>
-                           </div>
+
+                        {/* ========================================= */}
+                        {/* KHU VỰC VÙNG IN PHỤ (EXTRA PRINT AREAS) */}
+                        {/* ========================================= */}
+                        <div className="mt-2 pt-4 border-t border-gray-200/60">
+                          <div className="flex justify-between items-center mb-3">
+                            <label className="text-[10px] text-gray-500 font-bold uppercase tracking-widest block">Các vùng in phụ (Tay áo, Cổ...)</label>
+                            <button type="button" onClick={() => { const n = [...createForm.items]; n[index].extra_print_areas = [...(n[index].extra_print_areas || []), { name: '', url: '' }]; setCreateForm({ ...createForm, items: n }); }} className="text-[10px] bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg font-bold hover:bg-purple-200 transition-colors">
+                              + Thêm vùng in
+                            </button>
+                          </div>
+                          
+                          {item.extra_print_areas && item.extra_print_areas.length > 0 && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+                              {item.extra_print_areas.map((area: any, aIdx: number) => (
+                                <div key={aIdx} className="flex items-center gap-3 bg-white ring-1 ring-purple-100 p-2 rounded-xl relative group/extra shadow-sm hover:shadow-md transition-all">
+                                  <div className="w-10 h-10 shrink-0 rounded-lg shadow-inner border border-gray-100 flex items-center justify-center overflow-hidden" style={{ backgroundColor: getStandardColor(item.color) }}>
+                                    {isValidImageUrl(area.url) ? (
+                                      <img src={convertGoogleDriveUrl(area.url)} className="w-full h-full object-contain p-0.5" alt="Extra Area" />
+                                    ) : <span className="text-[7px] font-bold text-gray-400">Trống</span>}
+                                  </div>
+                                  <div className="flex-1 flex flex-col gap-1.5">
+                                    <input placeholder="Tên vị trí (VD: Left Sleeve)" value={area.name} onChange={(e) => { const n = [...createForm.items]; n[index].extra_print_areas[aIdx].name = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full text-[10px] font-bold text-gray-700 outline-none bg-transparent placeholder-gray-400 border-b border-gray-100 focus:border-purple-300 pb-0.5"/>
+                                    <input placeholder="Dán link ảnh..." value={area.url} onChange={(e) => { const n = [...createForm.items]; n[index].extra_print_areas[aIdx].url = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full text-[9px] outline-none bg-transparent text-purple-600 placeholder-purple-300"/>
+                                  </div>
+                                  <button type="button" onClick={() => { const n = [...createForm.items]; n[index].extra_print_areas = n[index].extra_print_areas.filter((_: any, i: number) => i !== aIdx); setCreateForm({ ...createForm, items: n }); }} className="absolute -top-1.5 -right-1.5 bg-red-100 text-red-500 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold hover:bg-red-500 hover:text-white transition-colors shadow-sm opacity-0 group-hover/extra:opacity-100">
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

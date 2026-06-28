@@ -332,6 +332,10 @@ export default function OrdersPage() {
   };
 
   const [importCurrentPage, setImportCurrentPage] = useState(1);
+  // === STATE CHO CHỨC NĂNG LÊN ĐƠN LẺ ===
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<any>(null);
+  const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
   const IMPORT_PAGE_SIZE = 20;
   const [isExporting, setIsExporting] = useState(false);
   
@@ -399,7 +403,76 @@ export default function OrdersPage() {
     const newTotalPages = Math.max(1, Math.ceil(remaining.length / IMPORT_PAGE_SIZE));
     setImportCurrentPage(prev => Math.min(prev, newTotalPages));
   };
+  // === HÀM XỬ LÝ LÊN ĐƠN LẺ ===
+  const handleOpenCreateModal = () => {
+    setCreateForm({
+      customer_name: '', customer_email: '', customer_phone: '',
+      shipping_address: { line_1: '', line_2: '', city: '', region: '', zip: '', country: 'US' },
+      items: [{ type: '', color: '', size: '', quantity: 1, sku: '', design_front: '', design_back: '', mockup: '', note: '', extra_print_areas: [] }],
+      order_note: ''
+    });
+    setIsCreateModalOpen(true);
+  };
 
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedShopId) return alert("Vui lòng chọn Shop!");
+
+    // 1. Validate các trường bắt buộc
+    if (!createForm.customer_name.trim()) return alert("Vui lòng nhập Tên khách hàng!");
+    const addr = createForm.shipping_address;
+    if (!addr.line_1 || !addr.city || !addr.region || !addr.zip || !addr.country) {
+      return alert("Vui lòng nhập đầy đủ: Địa chỉ 1, Thành phố, Bang/Vùng, Zipcode và Quốc gia!");
+    }
+
+    const items = createForm.items;
+    if (!items || items.length === 0) return alert("Phải có ít nhất 1 sản phẩm!");
+
+    let tempOrderPrice = 0;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (!it.type) return alert(`Sản phẩm #${i + 1}: Vui lòng chọn Loại sản phẩm (Phôi)!`);
+      if (!it.quantity || it.quantity < 1) return alert(`Sản phẩm #${i + 1}: Số lượng phải lớn hơn 0!`);
+      // Ghi chú: Color và Size được phép bỏ trống theo yêu cầu.
+
+      const blank = podBlanks.find(b => b.name === it.type);
+      if (blank && blank.display_price) {
+        tempOrderPrice += blank.display_price * (it.quantity || 1);
+      }
+    }
+
+    setIsSubmittingCreate(true);
+    try {
+      const product_type = items.length > 1 ? `${items[0].type} (+${items.length - 1} món khác)` : items[0].type;
+      
+      const payload = {
+        external_order_id: `MANUAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        customer_name: createForm.customer_name.trim(),
+        customer_email: createForm.customer_email.trim(),
+        customer_phone: createForm.customer_phone.trim(),
+        shipping_address: createForm.shipping_address,
+        order_note: createForm.order_note,
+        product_type: product_type,
+        order_price: tempOrderPrice,
+        product_detail: JSON.stringify(items),
+        status: 'pending' // Đơn mới luôn vào trạng thái Chờ thanh toán
+      };
+
+      await api.post('/partner/orders', {
+        orders: [payload],
+        target_shop_id: selectedShopId
+      });
+
+      notify("Tạo đơn hàng lẻ thành công!");
+      setIsCreateModalOpen(false);
+      if (activeTab !== 'list') setActiveTab('list');
+      fetchOrdersFromDB();
+    } catch (error: any) {
+      alert(error.response?.data?.error || "Đã xảy ra lỗi khi tạo đơn hàng.");
+    } finally {
+      setIsSubmittingCreate(false);
+    }
+  };
   const handleConfirmSupport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supportReason) return alert("Vui lòng nhập lý do khiếu nại.");
@@ -1843,6 +1916,16 @@ export default function OrdersPage() {
           </svg>
           Import CSV
         </button>
+        <div className="w-px h-6 bg-gray-200 my-auto mx-1"></div>
+        <button 
+          onClick={handleOpenCreateModal} 
+          className="flex items-center gap-2 px-6 py-2 rounded-lg font-bold transition text-blue-600 hover:bg-blue-50"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Tạo đơn lẻ
+        </button>
       </div>
 
       {activeTab === 'list' ? (
@@ -2723,6 +2806,155 @@ export default function OrdersPage() {
               <button type="button" onClick={() => setIsSupportModalOpen(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-lg">Đóng</button>
               <button type="submit" disabled={isSubmittingSupport} className="px-5 py-2 text-xs font-bold bg-gray-900 text-white rounded-lg hover:bg-gray-800">
                 {isSubmittingSupport ? "Đang xử lý..." : "Gửi yêu cầu"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+      {/* ================================================= */}
+      {/* MODAL TẠO ĐƠN HÀNG LẺ (MANUAL ORDER) */}
+      {/* ================================================= */}
+      {isCreateModalOpen && createForm && (
+        <div className="fixed inset-0 bg-gray-900/60 z-[999] flex items-center justify-center p-4 backdrop-blur-sm">
+          <form onSubmit={handleCreateSubmit} className="bg-slate-50 rounded-[2rem] shadow-2xl w-[75vw] max-w-6xl max-h-[90vh] flex flex-col overflow-hidden border border-white/20">
+            
+            <div className="px-8 py-5 border-b border-gray-200/60 flex justify-between items-center bg-white z-10 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                </div>
+                <h3 className="font-extrabold text-gray-800 text-xl">Tạo đơn hàng mới</h3>
+              </div>
+              <button type="button" onClick={() => setIsCreateModalOpen(false)} className="text-gray-400 hover:text-red-500 hover:bg-red-50 w-10 h-10 rounded-full flex items-center justify-center transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <div className="p-8 overflow-y-auto space-y-6">
+              {/* KHỐI 1: THÔNG TIN KHÁCH HÀNG */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm ring-1 ring-gray-100 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <h4 className="text-xs font-extrabold text-gray-800 uppercase tracking-widest flex items-center gap-2 mb-2"><span className="w-2 h-2 rounded-full bg-blue-500"></span> Cá nhân</h4>
+                  <input required placeholder="Họ và tên khách hàng *" value={createForm.customer_name} onChange={(e) => setCreateForm({...createForm, customer_name: e.target.value})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"/>
+                  <div className="grid grid-cols-2 gap-4">
+                    <input placeholder="Email" type="email" value={createForm.customer_email} onChange={(e) => setCreateForm({...createForm, customer_email: e.target.value})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"/>
+                    <input placeholder="Số điện thoại" value={createForm.customer_phone} onChange={(e) => setCreateForm({...createForm, customer_phone: e.target.value})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"/>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <h4 className="text-xs font-extrabold text-gray-800 uppercase tracking-widest flex items-center gap-2 mb-2"><span className="w-2 h-2 rounded-full bg-green-500"></span> Giao hàng</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input required placeholder="Địa chỉ 1 *" value={createForm.shipping_address.line_1} onChange={(e) => setCreateForm({...createForm, shipping_address: {...createForm.shipping_address, line_1: e.target.value}})} className="col-span-2 w-full bg-gray-50 ring-1 ring-gray-200/60 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"/>
+                    <input placeholder="Địa chỉ 2" value={createForm.shipping_address.line_2} onChange={(e) => setCreateForm({...createForm, shipping_address: {...createForm.shipping_address, line_2: e.target.value}})} className="col-span-2 w-full bg-gray-50 ring-1 ring-gray-200/60 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"/>
+                    <input required placeholder="Thành phố *" value={createForm.shipping_address.city} onChange={(e) => setCreateForm({...createForm, shipping_address: {...createForm.shipping_address, city: e.target.value}})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"/>
+                    <input required placeholder="Bang/Vùng *" value={createForm.shipping_address.region} onChange={(e) => setCreateForm({...createForm, shipping_address: {...createForm.shipping_address, region: e.target.value}})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"/>
+                    <input required placeholder="Mã Zip *" value={createForm.shipping_address.zip} onChange={(e) => setCreateForm({...createForm, shipping_address: {...createForm.shipping_address, zip: e.target.value}})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"/>
+                    <input required placeholder="Quốc gia (Mặc định: US) *" value={createForm.shipping_address.country} onChange={(e) => setCreateForm({...createForm, shipping_address: {...createForm.shipping_address, country: e.target.value}})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"/>
+                  </div>
+                </div>
+              </div>
+
+              {/* KHỐI 2: SẢN PHẨM & DESIGN */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-extrabold text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#C29017]"></span> Sản phẩm trong đơn
+                  </h4>
+                  <button type="button" onClick={() => setCreateForm({ ...createForm, items: [...createForm.items, { type: '', color: '', size: '', quantity: 1, sku: '', design_front: '', design_back: '', mockup: '', note: '', extra_print_areas: [] }] })} className="text-xs bg-white shadow-sm ring-1 ring-gray-200 px-3 py-1.5 rounded-lg text-gray-700 font-bold hover:text-blue-600 transition-all">
+                    + Thêm sản phẩm
+                  </button>
+                </div>
+                
+                {createForm.items.map((item: any, index: number) => {
+                  const selectedBlank = podBlanks.find(b => b.name === item.type);
+                  const parseArraySafe = (data: any) => { if (Array.isArray(data)) return data; if (typeof data === 'string') { try { return JSON.parse(data) || []; } catch { return []; } } return []; };
+                  const availableColors = parseArraySafe(selectedBlank?.colors);
+                  const availableSizes = parseArraySafe(selectedBlank?.sizes);
+
+                  return (
+                    <div key={index} className="bg-white p-5 rounded-[1.5rem] shadow-sm ring-1 ring-gray-100 flex flex-col gap-4 relative">
+                      {createForm.items.length > 1 && (
+                        <button type="button" onClick={() => setCreateForm({ ...createForm, items: createForm.items.filter((_: any, i: number) => i !== index) })} className="absolute top-4 right-4 text-[10px] text-red-500 bg-red-50 px-2.5 py-1 rounded-md hover:bg-red-500 hover:text-white font-bold transition-all">
+                          ✕ Xóa
+                        </button>
+                      )}
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pr-16">
+                        <div className="col-span-2">
+                          <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1">Loại sản phẩm (Phôi) *</label>
+                          <SearchableDropdown value={item.type || ''} placeholder="Chọn sản phẩm..." options={podBlanks} onChange={(val) => { const n = [...createForm.items]; n[index].type = val; setCreateForm({ ...createForm, items: n }); }} />
+                        </div>
+                        <div className="flex gap-2 col-span-2">
+                          <div className="flex-1">
+                            <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1">Màu (Tùy chọn)</label>
+                            <select value={item.color || ''} onChange={(e) => { const n = [...createForm.items]; n[index].color = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full bg-gray-50 ring-1 ring-gray-200 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500">
+                              <option value="">-- Không chọn --</option>
+                              {availableColors.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1">Size (Tùy chọn)</label>
+                            <select value={item.size || ''} onChange={(e) => { const n = [...createForm.items]; n[index].size = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full bg-gray-50 ring-1 ring-gray-200 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500">
+                              <option value="">-- Không chọn --</option>
+                              {availableSizes.map((s: string) => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          </div>
+                          <div className="w-16">
+                            <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1">SL *</label>
+                            <input type="number" min="1" value={item.quantity} onChange={(e) => { const n = [...createForm.items]; n[index].quantity = parseInt(e.target.value) || 1; setCreateForm({ ...createForm, items: n }); }} className="w-full bg-gray-50 ring-1 ring-gray-200 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500 text-center font-bold text-[#C29017]"/>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl ring-1 ring-gray-200/50">
+                        <div className="col-span-1">
+                          <label className="text-[10px] text-gray-500 font-bold uppercase ml-1 block mb-1">Mã SKU (Đồng bộ thư viện)</label>
+                          <SkuCombobox
+                            value={item.sku || ''}
+                            options={sellerDesigns}
+                            onChange={(val) => { const n = [...createForm.items]; n[index].sku = val; setCreateForm({ ...createForm, items: n }); }}
+                            onSelect={(d) => {
+                              const n = [...createForm.items];
+                              n[index] = { ...n[index], sku: d.sku, design_front: d.design_front_url || n[index].design_front, design_back: d.design_back_url || n[index].design_back, mockup: d.mockup_url || n[index].mockup };
+                              setCreateForm({ ...createForm, items: n });
+                            }}
+                          />
+                        </div>
+                        <div className="col-span-3 grid grid-cols-3 gap-2">
+                           <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-blue-600 font-bold uppercase">Link Front</label>
+                              <input type="text" placeholder="Dán link Drive..." value={item.design_front} onChange={(e) => { const n = [...createForm.items]; n[index].design_front = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full bg-white ring-1 ring-gray-200 p-2 rounded-md text-[10px] outline-none focus:ring-1 focus:ring-blue-400"/>
+                           </div>
+                           <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-purple-600 font-bold uppercase">Link Back</label>
+                              <input type="text" placeholder="Dán link Drive..." value={item.design_back} onChange={(e) => { const n = [...createForm.items]; n[index].design_back = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full bg-white ring-1 ring-gray-200 p-2 rounded-md text-[10px] outline-none focus:ring-1 focus:ring-purple-400"/>
+                           </div>
+                           <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-teal-600 font-bold uppercase">Link Mockup</label>
+                              <input type="text" placeholder="Dán link Drive..." value={item.mockup} onChange={(e) => { const n = [...createForm.items]; n[index].mockup = e.target.value; setCreateForm({ ...createForm, items: n }); }} className="w-full bg-white ring-1 ring-gray-200 p-2 rounded-md text-[10px] outline-none focus:ring-1 focus:ring-teal-400"/>
+                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* KHỐI 3: GHI CHÚ */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm ring-1 ring-gray-100">
+                <label className="text-[10px] font-extrabold text-gray-800 uppercase tracking-widest flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-gray-400"></span> Ghi chú gửi xưởng
+                </label>
+                <textarea placeholder="Ghi chú về đóng gói, ship hàng..." value={createForm.order_note} onChange={(e) => setCreateForm({...createForm, order_note: e.target.value})} className="w-full bg-gray-50 ring-1 ring-gray-200/60 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 h-16 resize-none"/>
+              </div>
+
+            </div>
+
+            <div className="px-8 py-5 bg-white border-t border-gray-100 flex justify-end gap-3 z-10">
+              <button type="button" onClick={() => setIsCreateModalOpen(false)} className="px-6 py-2.5 font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">Hủy</button>
+              <button type="submit" disabled={isSubmittingCreate} className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-all flex items-center gap-2 disabled:opacity-50">
+                {isSubmittingCreate ? 'Đang tạo đơn...' : 'Xác nhận lên đơn'}
               </button>
             </div>
           </form>

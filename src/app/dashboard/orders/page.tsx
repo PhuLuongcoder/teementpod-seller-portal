@@ -1502,7 +1502,6 @@ export default function OrdersPage() {
             orders: [payloadForApi], 
             target_shop_id: selectedShopId 
           });
-.
           
         } catch(e) { 
           console.error("Lỗi auto-save Inline:", e);

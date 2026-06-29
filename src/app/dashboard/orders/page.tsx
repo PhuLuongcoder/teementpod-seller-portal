@@ -1471,9 +1471,10 @@ export default function OrdersPage() {
       if (isImport) { 
         setImportOrders(targetOrders); 
       } else {
+        // CẬP NHẬT GIAO DIỆN NGAY LẬP TỨC (OPTIMISTIC UI)
         setDbOrders(targetOrders);
         
-        // 3. Đẩy lên Server (Và gọi lại hàm fetch để đồng bộ y hệt Popup)
+        // 3. Đẩy lên Server (Âm thầm dưới background)
         try {
           // Hàm bọc an toàn: Biến chuỗi thành Object để tránh sập Server (Lỗi 400)
           const parseObjSafe = (val: any) => {
@@ -1501,7 +1502,7 @@ export default function OrdersPage() {
             orders: [payloadForApi], 
             target_shop_id: selectedShopId 
           });
-          fetchOrdersFromDB();
+.
           
         } catch(e) { 
           console.error("Lỗi auto-save Inline:", e);

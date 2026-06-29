@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Papa from 'papaparse';
+import { useState, useEffect, startTransition } from "react";
 import api from '@/lib/axios';
 import { useShop } from '@/context/ShopContext';
 import { SquareTwoStack } from "@medusajs/icons"
@@ -1469,10 +1470,15 @@ export default function OrdersPage() {
       targetOrders[absoluteIdx] = order;
 
       if (isImport) { 
-        setImportOrders(targetOrders); 
+        // Bọc vào startTransition để không làm đơ UI
+        startTransition(() => {
+          setImportOrders(targetOrders); 
+        });
       } else {
-        // CẬP NHẬT GIAO DIỆN NGAY LẬP TỨC (OPTIMISTIC UI)
-        setDbOrders(targetOrders);
+        // Bọc vào startTransition để không làm đơ UI
+        startTransition(() => {
+          setDbOrders(targetOrders);
+        });
         
         // 3. Đẩy lên Server (Âm thầm dưới background)
         try {

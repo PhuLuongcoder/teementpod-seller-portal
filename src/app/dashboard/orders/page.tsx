@@ -2045,7 +2045,7 @@ export default function OrdersPage() {
           </div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-4">
             {dbOrders.length > 0 ? (
-              {renderOrderTable(dbOrders, false, 0)}
+              renderOrderTable(dbOrders, false, 0)
             ) : (
               <div className="p-12 text-center text-gray-500 font-medium">
                 Không tìm thấy đơn hàng nào phù hợp với bộ lọc hiện tại.

@@ -2121,7 +2121,7 @@ export default function OrdersPage() {
             return (
               <>
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                  <OrderTable data={importPageData} isImport={true} pageOffset={(importCurrentPage - 1) * IMPORT_PAGE_SIZE} />
+                  {renderOrderTable(importPageData, true, (importCurrentPage - 1) * IMPORT_PAGE_SIZE)}
                 </div>
                 {importTotalPages > 1 && (
                   <div className="flex items-center justify-between px-4 py-4 mt-4 bg-white border border-gray-100 rounded-xl shadow-sm">

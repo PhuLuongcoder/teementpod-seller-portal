@@ -1365,7 +1365,7 @@ export default function OrdersPage() {
   // 4. GIAO DIỆN BẢNG DÙNG CHUNG
   // ==========================================
 
-  const OrderTable = ({ data, isImport = false, pageOffset = 0 }: { data: any[], isImport?: boolean, pageOffset?: number }) => {
+  const renderOrderTable = (data: any[], isImport = false, pageOffset = 0) => {
     
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.checked) {
@@ -2045,7 +2045,7 @@ export default function OrdersPage() {
           </div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-4">
             {dbOrders.length > 0 ? (
-              <OrderTable data={dbOrders} />
+              {renderOrderTable(dbOrders, false, 0)}
             ) : (
               <div className="p-12 text-center text-gray-500 font-medium">
                 Không tìm thấy đơn hàng nào phù hợp với bộ lọc hiện tại.

@@ -736,7 +736,7 @@ export default function OrdersPage() {
         "Order ID", "Date", "Name", "Address line 1", "Address line 2", 
         "City", "Region", "Zip", "Country", 
         "Type", "Color", "Size", "Quantity", "SKU",
-        "Print area front", "Print area back", "Mockup Front", "Extra Print Areas", "Tracking", "Status"
+        "Print area front", "Print area back", "Mockup Front", "Extra Print Areas", "Tracking", "Status", "Total Price"
       ];
       
       const csvRows: string[] = [];
@@ -812,7 +812,8 @@ export default function OrdersPage() {
             // >>> XỬ LÝ TRACKING: Đổ mã tracking, nếu null hoặc undefined thì sẽ là khoảng trắng rỗng ""
             `"${(order.tracking_number || '').replace(/"/g, '""')}"`,
             
-            `"${statusText}"`
+            `"${statusText}"`,
+            `"${order.order_price || 0}"`
           ];
           csvRows.push(row.join(","));
         });

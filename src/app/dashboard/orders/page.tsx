@@ -455,6 +455,7 @@ export default function OrdersPage() {
         product_type: product_type,
         order_price: tempOrderPrice,
         product_detail: JSON.stringify(items),
+        items: items,
         status: 'pending' // Đơn mới luôn vào trạng thái Chờ thanh toán
       };
 
@@ -1296,7 +1297,6 @@ export default function OrdersPage() {
       const ordersReadyForBackend = importOrders.map(order => ({
         ...order,
         product_detail: order.items ? JSON.stringify(order.items) : order.product_detail,
-        items: undefined 
       }));
 
       for (let i = 0; i < totalOrders; i += BATCH_SIZE) {
@@ -1500,8 +1500,7 @@ export default function OrdersPage() {
             // Ép 3 trường dễ lỗi này về đúng định dạng Object
             shipping_address: parseObjSafe(order.shipping_address),
             special_print_areas: parseObjSafe(order.special_print_areas),
-            mockup_urls: parseObjSafe(order.mockup_urls),
-            items: undefined // Xóa mảng items thừa để tránh xung đột với product_detail
+            mockup_urls: parseObjSafe(order.mockup_urls)
           };
           
           await api.post('/partner/orders', { 

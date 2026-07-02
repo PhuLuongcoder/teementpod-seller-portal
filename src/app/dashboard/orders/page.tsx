@@ -374,19 +374,46 @@ export default function OrdersPage() {
     if (selectedShopId) fetchPodBlanks();
   }, [selectedShopId]);
 
-  useEffect(() => {
-    const fetchDesigns = async () => {
-      try {
-        const res = await api.get('/partner/designs', { 
-          params: { shop_id: selectedShopId, limit: 2000 } 
-        });
-        setSellerDesigns(res.data.designs || []);
-      } catch (error) {
-        console.error("Lỗi lấy danh sách Design:", error);
-      }
-    };
-    if (selectedShopId) fetchDesigns();
+  const fetchDesigns = useCallback(async () => {
+    if (!selectedShopId) return;
+    try {
+      const res = await api.get('/partner/designs', { 
+        params: { shop_id: selectedShopId, limit: 2000 } 
+      });
+      setSellerDesigns(res.data.designs || []);
+    } catch (error) {
+      console.error("Lỗi lấy danh sách Design:", error);
+    }
   }, [selectedShopId]);
+
+  // 2. Chạy hàm lấy dữ liệu khi màn hình vừa load
+  useEffect(() => {
+    fetchDesigns();
+  }, [fetchDesigns]);
+
+  // 3. THÊM MỚI: Hàm bắn dữ liệu thẳng vào API thư viện
+  const handleUpdateSKULibrary = async (item: any) => {
+    if (!item.sku || !item.sku.trim()) {
+      alert("Vui lòng nhập mã SKU trước khi lưu vào thư viện!");
+      return;
+    }
+    try {
+      await api.post('/partner/designs', {
+        sku: item.sku,
+        design_front_url: item.design_front,
+        design_back_url: item.design_back,
+        mockup_url: item.mockup,
+        extra_print_areas: item.extra_print_areas,
+        shop_id: selectedShopId
+      });
+      notify(`Đã đồng bộ thiết kế cho SKU: ${item.sku} vào thư viện!`);
+      
+      // Load lại dữ liệu ngay lập tức để Dropdown cập nhật mẫu mới
+      fetchDesigns(); 
+    } catch (error: any) {
+      alert(error.response?.data?.error || "Đã xảy ra lỗi khi lưu vào thư viện.");
+    }
+  };
 
   const handleBulkDeleteImport = async () => {
     const isConfirmed = await confirm({
@@ -1682,7 +1709,16 @@ export default function OrdersPage() {
                                   }}
                                 />
                               </div>
-                              
+                              {!isRowLocked && item.sku && (
+                                <button
+                                  onClick={() => handleUpdateSKULibrary(item)}
+                                  className="w-full text-[10px] bg-blue-50 text-blue-600 py-1.5 rounded-lg border border-blue-100 font-bold hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-1"
+                                  title="Cập nhật thông tin thiết kế hiện tại vào Thư viện SKU"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3 h-3"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                                  Lưu vào Thư viện
+                                </button>
+                              )}
                               <div className="flex items-center gap-2 mt-0.5">
                                 {[
                                   { label: 'Front', url: item.design_front },
@@ -2318,6 +2354,16 @@ export default function OrdersPage() {
                               }}
                             />
                           </div>
+                          {!isReadOnly && item.sku && (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateSKULibrary(item)}
+                              className="text-[11px] bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5 shrink-0"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                              Lưu thư viện
+                            </button>
+                          )}
                         </div>
                         {!isReadOnly && (editForm.items || []).length > 1 && (
                           <button

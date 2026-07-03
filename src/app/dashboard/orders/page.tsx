@@ -288,11 +288,22 @@ export default function OrdersPage() {
       }
 
       // ĐIỀU KIỆN 4: Size phải khớp với bảng Size của Phôi
-      try {
-        const validSizes = Array.isArray(blank.sizes) ? blank.sizes : (JSON.parse(blank.sizes || '[]'));
-        const sizeMatch = validSizes.some((s: string) => s.toLowerCase() === it.size.trim().toLowerCase());
-        if (!sizeMatch) return false;
-      } catch (e) { return false; }
+      let validSizes: string[] = [];
+
+      if (Array.isArray(blank.sizes)) {
+        validSizes = blank.sizes;
+      } else if (typeof blank.sizes === 'string') {
+        try {
+          validSizes = JSON.parse(blank.sizes || '[]');
+          if (!Array.isArray(validSizes)) validSizes = [];
+        } catch (e) {
+          validSizes = blank.sizes.split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+      }
+      const safeItemSize = (it.size || '').trim().toLowerCase();
+      const sizeMatch = validSizes.some((s: string) => s.toLowerCase() === safeItemSize);
+      
+      if (!sizeMatch) return false;
       
       return true;
     });
@@ -1535,8 +1546,14 @@ export default function OrdersPage() {
             target_shop_id: selectedShopId 
           });
           
-        } catch(e) { 
+        } catch(e: any) { 
           console.error("Lỗi auto-save Inline:", e);
+          
+          // 1. Cảnh báo ngay cho Seller biết việc lưu đã thất bại
+          alert(`Lỗi đồng bộ dữ liệu: ${e.response?.data?.error || 'Không thể lưu thay đổi vào hệ thống'}. Hệ thống sẽ tải lại dữ liệu gốc.`);
+          
+          // 2. Kéo lại dữ liệu thật từ DB để đè lên cái giao diện đang bị ảo
+          fetchOrdersFromDB();
         }
       }
     };

@@ -1460,7 +1460,6 @@ export default function OrdersPage() {
       // Cập nhật thông tin bác vừa gõ
       newItems[itemIdx] = { ...newItems[itemIdx], ...updates };
 
-      // Khớp màu/size nếu có chọn Phôi mới
       if (updates.type) {
         const newBlank = podBlanks.find(b => b.name === updates.type);
         if (newBlank) {
@@ -1471,8 +1470,9 @@ export default function OrdersPage() {
           const matchedColor = validColors.find((c: string) => c.toLowerCase() === (newItems[itemIdx].color || '').trim().toLowerCase());
           const matchedSize = validSizes.find((s: string) => s.toLowerCase() === (newItems[itemIdx].size || '').trim().toLowerCase());
           
-          newItems[itemIdx].color = matchedColor || newItems[itemIdx].color;
-          newItems[itemIdx].size = matchedSize || newItems[itemIdx].size;
+          // FIX TẠI ĐÂY: Xóa trắng nếu Phôi mới không hỗ trợ Màu/Size cũ
+          newItems[itemIdx].color = matchedColor || '';
+          newItems[itemIdx].size = matchedSize || '';
         }
       }
 

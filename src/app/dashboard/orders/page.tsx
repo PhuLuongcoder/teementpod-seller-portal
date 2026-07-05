@@ -781,7 +781,7 @@ export default function OrdersPage() {
       const csvRows: string[] = [];
 
       ordersToExport.forEach((order: any) => {
-        const orderDate = order.order_date ? new Date(order.order_date).toLocaleDateString('en-US') : '';
+        const orderDate = order.order_date ? new Date(order.order_date).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '';
         
         let addr: any = {};
         if (typeof order.shipping_address === 'string') {
@@ -900,7 +900,12 @@ export default function OrdersPage() {
         parsedData.forEach((row: any) => {
           const orderId = sanitizeText(row['Order ID']);
           if (!orderId) return;
-
+          const rawDate = row['Order Date'] || row['Date'] || row['Sale Date'] || '';
+          let parsedDate = null;
+          if (rawDate) {
+            const d = new Date(rawDate);
+            if (!isNaN(d.getTime())) parsedDate = d.toISOString();
+          }
           let rawType = '', rawColor = '', rawSize = '', rawQuantity = 1, rawSku = '';
           let name = '', line1 = '', line2 = '', city = '', region = '', zip = '', country = 'US';
           let designFront = '', designBack = '', mockup = '';
@@ -1010,7 +1015,7 @@ export default function OrdersPage() {
             ordersMap.set(orderId, {
               external_order_id: orderId,
               tracking_number: sanitizeText(tracking),
-              order_date: new Date().toISOString(),
+              order_date: parsedDate,
               customer_name: sanitizeText(name),
               customer_email: '', customer_phone: '',
               shipping_address: {
@@ -1660,7 +1665,7 @@ export default function OrdersPage() {
                   </td>
 
                   <td className="p-4 text-xs text-gray-600 font-medium">
-                    {order.order_date ? new Date(order.order_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '---'}
+                    {order.order_date ? new Date(order.order_date).toLocaleDateString('vi-VN', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }) : '---'}
                   </td>
 
                   <td className="p-4">

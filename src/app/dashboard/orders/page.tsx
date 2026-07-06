@@ -900,22 +900,38 @@ export default function OrdersPage() {
         const parsedData = results.data as any[];
         const isEtsyFormat = parsedData.length > 0 && parsedData[0].hasOwnProperty('Ship Name');
 
+        // Hàm hỗ trợ tìm kiếm cột thông minh (bỏ qua khoảng trắng, xuống dòng, viết hoa/thường)
+        const findValue = (row: any, targetKeys: string[]) => {
+          const keys = Object.keys(row);
+          for (const target of targetKeys) {
+            const cleanTarget = target.toLowerCase().replace(/[\n\r\s]+/g, '');
+            const foundKey = keys.find(k => k.toLowerCase().replace(/[\n\r\s]+/g, '').includes(cleanTarget));
+            if (foundKey) return row[foundKey];
+          }
+          return '';
+        };
+
         parsedData.forEach((row: any) => {
-          const orderId = sanitizeText(row['Order ID']);
+          // Bắt thông minh Order ID
+          const orderId = sanitizeText(findValue(row, ['Order ID', 'OrderID']));
           if (!orderId) return;
-          const rawDate = row['Order Date'] || row['Date'] || row['Sale Date'] || '';
+
+          // Bắt Date
+          const rawDate = findValue(row, ['Date', 'Order Date', 'Sale Date']);
           let parsedDate = null;
           if (rawDate) {
             const d = new Date(rawDate);
             if (!isNaN(d.getTime())) parsedDate = d.toISOString();
           }
+
           let rawType = '', rawColor = '', rawSize = '', rawQuantity = 1, rawSku = '';
           let name = '', line1 = '', line2 = '', city = '', region = '', zip = '', country = 'US';
-          let designFront = '', designBack = '', mockup = '';
+          let designFront = '', designBack = '', mockup = '', note = '';
           let tracking = '';
           let originalString = '';
 
           if (isEtsyFormat) {
+            // === LUỒNG ETSY GIỮ NGUYÊN ===
             name = row['Ship Name']?.trim() || '';
             line1 = row['Ship Address1']?.trim() || '';
             line2 = row['Ship Address2']?.trim() || '';
@@ -971,28 +987,32 @@ export default function OrdersPage() {
             originalString = cleanVariations ? cleanVariations.trim() : shortItemName;
             
           } else {
-            const keys = Object.keys(row);
-            const addr2Key = keys.find(k => k.toLowerCase().includes('line 2')) || 'Address line 2';
+            // === LUỒNG NORMAL (CẢI TIẾN) ===
+            name = findValue(row, ['Name'])?.trim() || '';
+            line1 = findValue(row, ['Address line 1'])?.trim() || '';
+            line2 = findValue(row, ['Address line 2'])?.trim() || '';
+            city = findValue(row, ['City'])?.trim() || '';
+            region = findValue(row, ['Region', 'State', 'Province'])?.trim() || '';
+            zip = findValue(row, ['Zip'])?.trim() || '';
+            country = findValue(row, ['Country'])?.trim() || 'US';
             
-            name = row['Name']?.trim() || '';
-            line1 = row['Address line 1']?.trim() || '';
-            line2 = row[addr2Key]?.trim() || '';
-            city = row['City']?.trim() || '';
-            region = row['Region']?.trim() || '';
-            zip = row['Zip']?.trim() || '';
-            country = row['Country']?.trim() || 'US';
+            // Bắt cột Type có chứa text lạ hoặc xuống dòng
+            rawType = findValue(row, ['Type(ĐiềnĐúng', 'Type']); 
+            rawColor = findValue(row, ['Color']);
+            rawSize = findValue(row, ['Size']);
+            rawQuantity = parseInt(findValue(row, ['Quantity'])) || 1;
+            rawSku = findValue(row, ['SKU', 'Design SKU']);
             
-            rawType = row['Type'] || '';
-            rawColor = row['Color'] || '';
-            rawSize = row['Size'] || '';
-            rawQuantity = parseInt(row['Quantity']) || 1;
-            rawSku = row['SKU'] || row['Design SKU'] || '';
-            tracking = row['Tracking'] || '';
+            // Bắt cột Track có khoảng trắng
+            tracking = findValue(row, ['Track', 'Tracking']);
+            // Bắt cả cột Note nếu có
+            note = findValue(row, ['Note'])?.trim() || '';
             
-            designFront = row['Print area front']?.trim() || '';
-            designBack = row['Print area back']?.trim() || '';
-            mockup = row['Mockup Front']?.trim() || '';
-            const fullType = row['Full Type'] || row['Full type'] || '';
+            designFront = findValue(row, ['Print area front'])?.trim() || '';
+            designBack = findValue(row, ['Print area back'])?.trim() || '';
+            mockup = findValue(row, ['Mockup Front', 'Mockup'])?.trim() || '';
+            
+            const fullType = findValue(row, ['Full Type']);
             originalString = fullType 
               ? `Hệ thống: ${fullType}` 
               : `Loại: ${rawType}, Màu: ${rawColor}, Size: ${rawSize}`;
@@ -1007,6 +1027,7 @@ export default function OrdersPage() {
             design_front: designFront,
             design_back: designBack,
             mockup: mockup,
+            note: note, 
             extra_print_areas: [],
             original_string: originalString
           };
@@ -1046,7 +1067,7 @@ export default function OrdersPage() {
           
           return {
             ...order,
-            order_price: tempPrice, // <-- Fix: Gán giá trị thật luôn từ lúc Import
+            order_price: tempPrice,
             product_type: order.items && order.items.length > 1 
               ? `${order.items[0].type} (+${order.items.length - 1} món khác)` 
               : (order.items?.[0]?.type || '')

@@ -278,7 +278,10 @@ export default function OrdersPage() {
       if (!it.type || !it.color || !it.size) return false;
       
       // ĐIỀU KIỆN 2: Bắt buộc phải có ít nhất 1 link thiết kế (Mặt trước hoặc mặt sau)
-      if (!it.design_front && !it.design_back) return false;
+      const hasFront = !!(it.design_front && it.design_front.trim());
+      const hasBack = !!(it.design_back && it.design_back.trim());
+      const hasMockup = !!(it.mockup && it.mockup.trim());
+      if (!hasFront && !hasBack && !hasMockup) return false;
 
       const blank = podBlanks.find(b => b.name === it.type);
       if (!blank) return false;
@@ -309,8 +312,8 @@ export default function OrdersPage() {
     });
 
     // ĐIỀU KIỆN TỐI THƯỢNG: Tổng giá trị đơn hàng phải LỚN HƠN $0
-    const finalPrice = calculatedPrice > 0 ? calculatedPrice : (order.order_price || 0);
-    return itemsValid && finalPrice > 0;
+    const finalPrice = calculatedPrice >= 0 ? calculatedPrice : (order.order_price || 0);
+    return itemsValid && finalPrice >= 0;
   };
 
   const [isLoadingList, setIsLoadingList] = useState(false);
@@ -1287,7 +1290,7 @@ export default function OrdersPage() {
     const updatedOrderData = { 
       ...editForm, 
       product_type: newProductType,
-      order_price: tempOrderPrice > 0 ? tempOrderPrice : editForm.order_price,
+      order_price: Math.max(0, tempOrderPrice),
       special_print_areas: Object.keys(spObj).length > 0 ? spObj : null,
       mockup_urls: Object.keys(muObj).length > 0 ? muObj : null,
       product_detail: JSON.stringify(items) 
@@ -1318,7 +1321,8 @@ export default function OrdersPage() {
         fetchOrdersFromDB(); 
         setEditingIndex(null);
       } catch (err: any) {
-        alert(err.response?.data?.error || "Lỗi lưu dữ liệu.");
+        alert(err.response?.data?.error || "Lỗi lưu dữ liệu. Hệ thống sẽ tải lại dữ liệu thực tế.");
+        fetchOrdersFromDB(); // Tát cho tỉnh: Kéo lại data chuẩn để xóa bỏ giao diện ảo
       }
     }
   };
@@ -2424,8 +2428,8 @@ export default function OrdersPage() {
                                 const matchedColor = newBlankColors.find((c: string) => c.toLowerCase() === (currentItem.color || '').trim().toLowerCase());
                                 const matchedSize = newBlankSizes.find((s: string) => s.toLowerCase() === (currentItem.size || '').trim().toLowerCase());
                                 
-                                currentItem.color = matchedColor || currentItem.color;
-                                currentItem.size = matchedSize || currentItem.size;
+                                currentItem.color = matchedColor || '';
+                                currentItem.size = matchedSize || '';
                               }
                               setEditForm({ ...editForm, items: newItems });
                             }}

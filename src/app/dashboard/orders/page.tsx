@@ -1750,7 +1750,8 @@ export default function OrdersPage() {
                                       design_front: design.design_front_url,
                                       design_back: design.design_back_url,
                                       mockup: design.mockup_url,
-                                      extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : undefined
+                                      // FIX TẠI ĐÂY: Dùng lại item.extra_print_areas nếu thư viện không có
+                                      extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : item.extra_print_areas 
                                     });
                                     notify(`Đã đồng bộ thiết kế SKU: ${design.sku}`);
                                   }}

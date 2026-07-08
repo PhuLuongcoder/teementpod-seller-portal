@@ -313,7 +313,7 @@ export default function OrdersPage() {
 
     // ĐIỀU KIỆN TỐI THƯỢNG: Tổng giá trị đơn hàng phải LỚN HƠN $0
     const finalPrice = calculatedPrice >= 0 ? calculatedPrice : (order.order_price || 0);
-    return itemsValid && finalPrice >= 0;
+    return itemsValid && finalPrice > 0;
   };
 
   const [isLoadingList, setIsLoadingList] = useState(false);
@@ -357,8 +357,8 @@ export default function OrdersPage() {
   const [editSource, setEditSource] = useState<'db' | 'import'>('import');
   const [editForm, setEditForm] = useState<any>(null);
   const [isReadOnly, setIsReadOnly] = useState(false);
-  const [specialPrintsForm, setSpecialPrintsForm] = useState<{name: string, url: string}[]>([]);
-  const [mockupsForm, setMockupsForm] = useState<{name: string, url: string}[]>([]);
+  // const [specialPrintsForm, setSpecialPrintsForm] = useState<{name: string, url: string}[]>([]);
+  // const [mockupsForm, setMockupsForm] = useState<{name: string, url: string}[]>([]);
   
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [supportType, setSupportType] = useState<'resent' | 'refund'>('resent');
@@ -944,6 +944,7 @@ export default function OrdersPage() {
             rawSku = row['SKU'] || '';
             tracking = row['Tracking']?.trim() || '';
 
+            const buyerEmail = row['Buyer Email'] || row['Email'] || '';
             const variations = row['Variations'] || '';
             const varParts = variations.split(',');
             
@@ -961,12 +962,7 @@ export default function OrdersPage() {
                 
                 if (tempSize) {
                   const finalSize = tempSize.toUpperCase();
-                  const allowedSizes = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
-                  if (allowedSizes.includes(finalSize)) {
-                    rawSize = finalSize; 
-                  } else {
-                    rawSize = ''; 
-                  }
+                  rawSize = finalSize;
                 }
               }
               
@@ -1041,7 +1037,7 @@ export default function OrdersPage() {
               tracking_number: sanitizeText(tracking),
               order_date: parsedDate,
               customer_name: sanitizeText(name),
-              customer_email: '', customer_phone: '',
+              customer_email: sanitizeText(buyerEmail), customer_phone: '',
               shipping_address: {
                 line_1: line1, line_2: line2, city: city, region: region, zip: zip, country: country
               },
@@ -1173,7 +1169,18 @@ export default function OrdersPage() {
     };
     let parsedProductDetail = parseField2(order.product_detail);
     
-    const normalizeItem = (item: any) => ({
+    let legacyExtraAreas: any[] = [];
+    try {
+      const parsedSp = typeof order.special_print_areas === 'string' 
+        ? JSON.parse(order.special_print_areas) 
+        : order.special_print_areas;
+      if (parsedSp) {
+        legacyExtraAreas = Object.entries(parsedSp).map(([n, u]) => ({ name: n, url: u as string }));
+      }
+    } catch { }
+
+    // 2. Chèn tham số 'idx' vào normalizeItem để biết đang map item thứ mấy
+    const normalizeItem = (item: any, idx: number) => ({
       sku: item.sku || '',
       type: item.type || '',
       color: item.color || '',
@@ -1183,24 +1190,33 @@ export default function OrdersPage() {
       design_back: item.design_back || '',
       mockup: item.mockup || '',
       note: item.note || '',
-      extra_print_areas: Array.isArray(item.extra_print_areas) ? item.extra_print_areas : [],
+      
+      // 3. LOGIC CỨU DỮ LIỆU: 
+      // Ưu tiên dữ liệu chuẩn của item. Nếu item trống VÀ là item đầu tiên (idx === 0), 
+      // thì đổ toàn bộ vùng in cũ của Order vào đây!
+      extra_print_areas: (Array.isArray(item.extra_print_areas) && item.extra_print_areas.length > 0)
+        ? item.extra_print_areas 
+        : (idx === 0 ? legacyExtraAreas : []),
+        
       original_string: item.original_string || '',
     });
 
     let itemsArray: any[] = [];
 
     if (source === 'import') {
-      itemsArray = Array.isArray(order.items) ? order.items.map(normalizeItem) : [];
+      // Nhớ truyền thêm tham số index vào vòng lặp map nhé bác
+      itemsArray = Array.isArray(order.items) ? order.items.map((it, i) => normalizeItem(it, i)) : [];
     } else {
       if (Array.isArray(order.items) && order.items.length > 0) {
-        itemsArray = order.items.map(normalizeItem);
+        itemsArray = order.items.map((it, i) => normalizeItem(it, i));
       } else if (Array.isArray(parsedProductDetail)) {
-        itemsArray = parsedProductDetail.map(normalizeItem);
+        itemsArray = parsedProductDetail.map((it, i) => normalizeItem(it, i));
       } else if (parsedProductDetail && Array.isArray(parsedProductDetail.items)) {
-        itemsArray = parsedProductDetail.items.map(normalizeItem);
+        itemsArray = parsedProductDetail.items.map((it, i) => normalizeItem(it, i));
       } else {
         const pt = parsedProductDetail && typeof parsedProductDetail === 'object' ? parsedProductDetail : {};
-        itemsArray = [{
+        // Với trường hợp rơi vào đây, nó mặc định là item đầu tiên (idx = 0)
+        itemsArray = [normalizeItem({
           sku: pt.sku || order.sku || '',
           type: pt.type || order.product_type || '',
           color: pt.color || '',
@@ -1210,7 +1226,7 @@ export default function OrdersPage() {
           design_back: pt.design_back || order.design_back_url || '',
           mockup: pt.mockup || '',
           extra_print_areas: [],
-        }];
+        }, 0)];
       }
     }
 
@@ -1222,14 +1238,14 @@ export default function OrdersPage() {
     
     setEditForm(safeOrder);
 
-    const parseToList = (f: any) => {
-      try {
-        const obj = typeof f === 'string' ? JSON.parse(f) : f;
-        return obj ? Object.entries(obj).map(([n, u]) => ({ name: n, url: u as string })) : [];
-      } catch { return []; }
-    };
-    setSpecialPrintsForm(parseToList(order.special_print_areas));
-    setMockupsForm(parseToList(order.mockup_urls));
+    // const parseToList = (f: any) => {
+    //   try {
+    //     const obj = typeof f === 'string' ? JSON.parse(f) : f;
+    //     return obj ? Object.entries(obj).map(([n, u]) => ({ name: n, url: u as string })) : [];
+    //   } catch { return []; }
+    // };
+    // setSpecialPrintsForm(parseToList(order.special_print_areas));
+    // setMockupsForm(parseToList(order.mockup_urls));
   };
 
   const handleSaveEdit = async () => {
@@ -1291,10 +1307,10 @@ export default function OrdersPage() {
       it.size = validSizes.find((s: string) => s.toLowerCase() === (it.size || '').trim().toLowerCase()) || it.size;
     }
 
-    const spObj: any = {};
-    specialPrintsForm.forEach(i => { if (i.name.trim()) spObj[i.name.trim()] = i.url; });
-    const muObj: any = {};
-    mockupsForm.forEach(i => { if (i.name.trim()) muObj[i.name.trim()] = i.url; });
+    // const spObj: any = {};
+    // specialPrintsForm.forEach(i => { if (i.name.trim()) spObj[i.name.trim()] = i.url; });
+    // const muObj: any = {};
+    // mockupsForm.forEach(i => { if (i.name.trim()) muObj[i.name.trim()] = i.url; });
 
     const newProductType = items.length > 1
       ? `${items[0]?.type} (+${items.length - 1} món khác)`
@@ -1312,8 +1328,8 @@ export default function OrdersPage() {
       ...editForm, 
       product_type: newProductType,
       order_price: Math.max(0, tempOrderPrice),
-      special_print_areas: Object.keys(spObj).length > 0 ? spObj : null,
-      mockup_urls: Object.keys(muObj).length > 0 ? muObj : null,
+      special_print_areas: null, 
+      mockup_urls: null,
       product_detail: JSON.stringify(items) 
     };
 
@@ -1330,7 +1346,7 @@ export default function OrdersPage() {
 
         const payloadForApi = {
           ...updatedOrderData,
-          items: undefined 
+          items: items, 
         };
 
         await api.post('/partner/orders', { 

@@ -946,7 +946,6 @@ export default function OrdersPage() {
             rawSku = row['SKU'] || '';
             tracking = row['Tracking']?.trim() || '';
 
-            let buyerEmail = row['Buyer Email'] || row['Email'] || '';
             const variations = row['Variations'] || '';
             const varParts = variations.split(',');
             

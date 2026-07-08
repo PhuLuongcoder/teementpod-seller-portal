@@ -1758,7 +1758,53 @@ export default function OrdersPage() {
                                   disabled={isRowLocked}
                                   value={item.sku || ''}
                                   options={sellerDesigns}
-                                  onBlur={(val) => updateInlineItem(absoluteIdx, itemIdx, { sku: val })} 
+                                  onBlur={async (val) => {
+                                    const trimmedVal = val.trim();
+                                    if (!trimmedVal) {
+                                      updateInlineItem(absoluteIdx, itemIdx, { sku: '' });
+                                      return;
+                                    }
+                              
+                                    // 1. TÌM NHANH TẠI CHỖ (LOCAL STATE)
+                                    const localMatch = sellerDesigns.find((d: any) => d.sku.toLowerCase() === trimmedVal.toLowerCase());
+                                    
+                                    if (localMatch) {
+                                      const libraryExtraAreas = localMatch.extra_print_areas || [];
+                                      updateInlineItem(absoluteIdx, itemIdx, {
+                                        sku: localMatch.sku,
+                                        design_front: localMatch.design_front_url || item.design_front,
+                                        design_back: localMatch.design_back_url || item.design_back,
+                                        mockup: localMatch.mockup_url || item.mockup,
+                                        extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : item.extra_print_areas
+                                      });
+                                      return;
+                                    }
+                              
+                                    // 2. TÌM SÂU TRÊN SERVER (API CALL)
+                                    try {
+                                      const res = await api.get('/partner/designs', {
+                                        params: { shop_id: selectedShopId, search: trimmedVal }
+                                      });
+                                      const designs = res.data.designs || [];
+                                      const exactMatch = designs.find((d: any) => d.sku.toLowerCase() === trimmedVal.toLowerCase());
+                              
+                                      if (exactMatch) {
+                                        const libraryExtraAreas = exactMatch.extra_print_areas || [];
+                                        updateInlineItem(absoluteIdx, itemIdx, {
+                                          sku: exactMatch.sku,
+                                          design_front: exactMatch.design_front_url || item.design_front,
+                                          design_back: exactMatch.design_back_url || item.design_back,
+                                          mockup: exactMatch.mockup_url || item.mockup,
+                                          extra_print_areas: libraryExtraAreas.length > 0 ? libraryExtraAreas : item.extra_print_areas
+                                        });
+                                        notify(`Đã đồng bộ thiết kế từ máy chủ cho SKU: ${trimmedVal}`);
+                                      } else {
+                                        updateInlineItem(absoluteIdx, itemIdx, { sku: trimmedVal });
+                                      }
+                                    } catch (error) {
+                                      updateInlineItem(absoluteIdx, itemIdx, { sku: trimmedVal });
+                                    }
+                                  }} 
                                   onSelect={(design) => {
                                     const libraryExtraAreas = design.extra_print_areas || [];
                                     updateInlineItem(absoluteIdx, itemIdx, {

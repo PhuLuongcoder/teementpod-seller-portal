@@ -1207,14 +1207,14 @@ export default function OrdersPage() {
 
     if (source === 'import') {
       // Nhớ truyền thêm tham số index vào vòng lặp map nhé bác
-      itemsArray = Array.isArray(order.items) ? order.items.map((it, i) => normalizeItem(it, i)) : [];
+      itemsArray = Array.isArray(order.items) ? order.items.map((it: any, i: number) => normalizeItem(it, i)) : [];
     } else {
       if (Array.isArray(order.items) && order.items.length > 0) {
-        itemsArray = order.items.map((it, i) => normalizeItem(it, i));
+        itemsArray = order.items.map((it: any, i: number) => normalizeItem(it, i));
       } else if (Array.isArray(parsedProductDetail)) {
-        itemsArray = parsedProductDetail.map((it, i) => normalizeItem(it, i));
+        itemsArray = parsedProductDetail.map((it: any, i: number) => normalizeItem(it, i));
       } else if (parsedProductDetail && Array.isArray(parsedProductDetail.items)) {
-        itemsArray = parsedProductDetail.items.map((it, i) => normalizeItem(it, i));
+        itemsArray = parsedProductDetail.items.map((it: any, i: number) => normalizeItem(it, i));
       } else {
         const pt = parsedProductDetail && typeof parsedProductDetail === 'object' ? parsedProductDetail : {};
         // Với trường hợp rơi vào đây, nó mặc định là item đầu tiên (idx = 0)

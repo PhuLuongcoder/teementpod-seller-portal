@@ -929,10 +929,12 @@ export default function OrdersPage() {
           let designFront = '', designBack = '', mockup = '', note = '';
           let tracking = '';
           let originalString = '';
+          let buyerEmail = '';
 
           if (isEtsyFormat) {
             // === LUỒNG ETSY GIỮ NGUYÊN ===
             name = row['Ship Name']?.trim() || '';
+            buyerEmail = row['Buyer Email']?.trim() || row['Email']?.trim() || '';
             line1 = row['Ship Address1']?.trim() || '';
             line2 = row['Ship Address2']?.trim() || '';
             city = row['Ship City']?.trim() || '';
@@ -985,6 +987,7 @@ export default function OrdersPage() {
           } else {
             // === LUỒNG NORMAL (CẢI TIẾN) ===
             name = findValue(row, ['Name'])?.trim() || '';
+            buyerEmail = findValue(row, ['Email', 'Buyer Email', 'Customer Email'])?.trim() || '';
             line1 = findValue(row, ['Address line 1'])?.trim() || '';
             line2 = findValue(row, ['Address line 2'])?.trim() || '';
             city = findValue(row, ['City'])?.trim() || '';

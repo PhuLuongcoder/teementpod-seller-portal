@@ -1514,7 +1514,20 @@ export default function OrdersPage() {
       }
       
       const newItems = [...(currentItems || [])];
-      if (!newItems[itemIdx]) newItems[itemIdx] = {};
+      if (!newItems[itemIdx]) {
+        newItems[itemIdx] = {
+          type: order.product_type || '', 
+          color: '', 
+          size: '', 
+          quantity: 1, 
+          sku: order.sku || '',
+          design_front: order.design_front_url || '', 
+          design_back: order.design_back_url || '', 
+          mockup: '', 
+          note: '', 
+          extra_print_areas: []
+        };
+      }
 
       // Cập nhật thông tin bác vừa gõ
       newItems[itemIdx] = { ...newItems[itemIdx], ...updates };
@@ -1647,13 +1660,38 @@ export default function OrdersPage() {
               else if (order.status === 'pending') { statusLabel = 'Chờ thanh toán'; }
               
               const safeItems = (() => {
-                if (Array.isArray(order.items)) return order.items;
-                try {
-                  const pd = typeof order.product_detail === 'string' ? JSON.parse(order.product_detail) : order.product_detail;
-                  if (Array.isArray(pd)) return pd;
-                  if (pd?.items && Array.isArray(pd.items)) return pd.items;
-                } catch(e) {}
-                return [];
+                let items: any[] = [];
+                
+                // 1. Ưu tiên lấy từ order.items
+                if (Array.isArray(order.items) && order.items.length > 0) {
+                  items = order.items;
+                } else {
+                  // 2. Nếu không có, cố gắng bóc tách từ chuỗi JSON product_detail
+                  try {
+                    const pd = typeof order.product_detail === 'string' ? JSON.parse(order.product_detail) : order.product_detail;
+                    if (Array.isArray(pd) && pd.length > 0) items = pd;
+                    else if (pd?.items && Array.isArray(pd.items) && pd.items.length > 0) items = pd.items;
+                  } catch(e) {}
+                }
+                
+                // 3. CHỐT CHẶN AN TOÀN: 
+                // Nếu dữ liệu bị lỗi/rỗng, ép hệ thống đẻ ra 1 form trống để Seller có chỗ thao tác
+                if (items.length === 0) {
+                  items = [{
+                    type: order.product_type || '', 
+                    color: '', 
+                    size: '', 
+                    quantity: 1, 
+                    sku: order.sku || '',
+                    design_front: order.design_front_url || '', 
+                    design_back: order.design_back_url || '', 
+                    mockup: '', 
+                    note: '', 
+                    extra_print_areas: []
+                  }];
+                }
+                
+                return items;
               })();
 
               // const isFullyMapped = safeItems.length > 0 && safeItems.every((item: any) => item.type && item.color && item.size);
